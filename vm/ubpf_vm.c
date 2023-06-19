@@ -152,6 +152,11 @@ ubpf_load(struct ubpf_vm* vm, const void* code, uint32_t code_len, char** errmsg
     const struct ebpf_inst* source_inst = code;
     *errmsg = NULL;
 
+    if (UBPF_STACK_SIZE % sizeof(uint64_t) != 0) {
+        *errmsg = ubpf_error("UBPF_STACK_SIZE must be a multiple of 8");
+        return -1;
+    }
+
     if (vm->insts) {
         *errmsg = ubpf_error(
             "code has already been loaded into this VM. Use ubpf_unload_code() if you need to reuse this VM");
@@ -280,11 +285,30 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
     const struct ebpf_inst* insts = vm->insts;
     uint64_t* reg;
     uint64_t _reg[16];
-    uint64_t stack[(UBPF_STACK_SIZE + 7) / 8];
+    uint64_t ras_index = 0;
+
+// Windows Kernel mode limits stack usage to 12K, so we need to allocate it dynamically.
+#if defined(NTDDI_VERSION) && defined(WINNT)
+    uint64_t* stack = NULL;
+    struct ubpf_stack_frame* stack_frames = NULL;
+
+    stack = calloc(UBPF_STACK_SIZE, 1);
+    if (!stack) {
+        return -1;
+    }
+
+    stack_frames = calloc(UBPF_MAX_CALL_DEPTH, sizeof(struct ubpf_stack_frame));
+    if (!stack_frames) {
+        free(stack);
+        return -1;
+    }
+
+#else
+    uint64_t stack[UBPF_STACK_SIZE / sizeof(uint64_t)];
     struct ubpf_stack_frame stack_frames[UBPF_MAX_CALL_DEPTH] = {
         0,
     };
-    uint64_t ras_index = 0;
+#endif
 
     if (!insts) {
         /* Code must be loaded before we can execute */
@@ -302,7 +326,7 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
 
     reg[1] = (uintptr_t)mem;
     reg[2] = (uint64_t)mem_len;
-    reg[10] = (uintptr_t)stack + sizeof(stack);
+    reg[10] = (uintptr_t)stack + UBPF_STACK_SIZE;
 
     while (1) {
         const uint16_t cur_pc = pc;
@@ -848,6 +872,11 @@ ubpf_exec(const struct ubpf_vm* vm, void* mem, size_t mem_len, uint64_t* bpf_ret
             break;
         }
     }
+
+#if defined(NTDDI_VERSION) && defined(WINNT)
+    free(stack_frames);
+    free(stack);
+#endif
 }
 
 static bool
