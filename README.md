@@ -25,8 +25,7 @@ Before following any of the instructions below for [building](#building-with-cma
 sure to properly check out the source code which requires properly initializing submodules:
 
 ```
-git submodule init
-git submodule update --recursive
+git submodule update --init --recursive
 ```
 
 ## Building with CMake
