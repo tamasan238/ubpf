@@ -28,13 +28,7 @@ sure to properly check out the source code which requires properly initializing 
 git submodule update --init --recursive
 ```
 
-## Building with CMake
-A build system for compiling and testing ubpf is generated for Windows, Linux and macOS platforms using [`cmake`](https://cmake.org/):
-
-```
-cmake -S . -B build -DUBPF_ENABLE_TESTS=true
-cmake --build build --config Debug
-```
+## Preparing system for build
 
 In order to prepare your system to successfully generate the build system using CMake, follow the platform-specific instructions below.
 
@@ -83,7 +77,19 @@ cmake -S . -B build -DUBPF_ENABLE_TESTS=true -DUBPF_ALTERNATE_LLVM_PATH=/opt/hom
 ```
 
 ### Linux
-TBD
+
+```bash
+./scripts/build-libbpf.sh
+```
+
+## Building with CMake
+
+A build system for compiling and testing ubpf is generated for Windows, Linux and macOS platforms using [`cmake`](https://cmake.org/):
+
+```
+cmake -S . -B build -DUBPF_ENABLE_TESTS=true
+cmake --build build --config Debug
+```
 
 ## Running the tests
 
