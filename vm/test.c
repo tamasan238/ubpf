@@ -32,6 +32,11 @@
 #include <math.h>
 #include "ubpf.h"
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
 #include "../bpf/bpf.h"
 
 #if defined(UBPF_HAS_ELF_H)
@@ -41,6 +46,8 @@
 #include <elf.h>
 #endif
 #endif
+
+#define PORT 11111
 
 void
 ubpf_set_register_offset(int x);
@@ -178,6 +185,137 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
 }
 
 int
+receive_packets(ubpf_jit_fn fn)
+{
+    int                ret;
+    int                sockfd;
+    int                connd;
+    struct sockaddr_in servAddr;
+    struct sockaddr_in clientAddr;
+    socklen_t          size = sizeof(clientAddr);
+    char               buff[4096];
+    size_t             buff_size;
+    size_t             buff_count;
+    uint64_t           fn_ret;
+
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        fprintf(stderr, "ERROR: failed to create the socket\n");
+        ret = -1;
+        goto end;
+    }
+
+    memset(&servAddr, 0, sizeof(servAddr));
+
+    servAddr.sin_family      = AF_INET;
+    servAddr.sin_port        = htons(PORT);
+    servAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sockfd, (struct sockaddr*)&servAddr, sizeof(servAddr)) == -1) {
+        fprintf(stderr, "ERROR: failed to bind\n");
+        ret = -1;
+        goto servsocket_cleanup;
+    }
+
+    if (listen(sockfd, 5) == -1) {
+        fprintf(stderr, "ERROR: failed to listen\n");
+        ret = -1;
+        goto servsocket_cleanup;
+    }
+
+    printf("Waiting for a connection...\n");
+
+    if ((connd = accept(sockfd, (struct sockaddr*)&clientAddr, &size))
+        == -1) {
+        fprintf(stderr, "ERROR: failed to accept the connection\n\n");
+        ret = -1;
+        goto servsocket_cleanup;
+    }
+
+    printf("Client connected successfully\n");
+
+    while (1) {
+        // size of batch
+        buff_size = 0;
+        if (read(connd, &buff_size, sizeof(int)) == -1) {
+            fprintf(stderr, "ERROR: failed to read | size of batch\n");
+            ret = -1;
+            close(sockfd);
+        }
+
+        if (buff_size == *(int *)"shut") {
+            printf("Shutdown command issued!\n");
+            break;
+        }
+        printf("Client: size of batch: %ld\n", buff_size);
+
+        // batch
+        memset(buff, 0, sizeof(buff));
+        if (read(connd, buff, buff_size) == -1) {
+            fprintf(stderr, "ERROR: failed to read | batch\n");
+            ret = -1;
+            close(sockfd);
+        }
+        printf("Client: batch: %s\n", buff);
+
+        // how many packets
+        buff_count = 0;
+        if (read(connd, &buff_count, sizeof(size_t)) == -1) {
+            fprintf(stderr, "ERROR: failed to read | packets count\n");
+            ret = -1;
+            close(sockfd);
+            exit(1);
+        }
+        printf("Client: packets count: %ld\n", buff_count);
+
+        // packets
+        for(int i=0; i<buff_count; i++){
+            // size of packet
+            buff_size = 0;
+            if (read(connd, &buff_size, sizeof(int)) == -1) {
+                fprintf(stderr, "ERROR: failed to read | size of packet\n");
+                ret = -1;
+                close(sockfd);
+            }
+            printf("Client: size of packet[%d]: %ld\n", i, buff_size);
+
+            // packet
+            memset(buff, 0, sizeof(buff));
+            if (read(connd, buff, buff_size) == -1) {
+                fprintf(stderr, "ERROR: failed to read | packet\n");
+                ret = -1;
+                close(sockfd);
+            }
+            printf("Client: packet[%d]: %s\n", i, buff);
+
+            fn_ret = fn(buff, buff_size);
+            printf("0x%" PRIx64 "\n", fn_ret);
+        }
+
+        //        memset(buff, 0, sizeof(buff));
+        //        memcpy(buff, reply, strlen(reply));
+        //        len = strnlen(buff, sizeof(buff));
+        //
+        //        if ((ret = write(connd, buff, len)) != len) {
+        //            fprintf(stderr, "ERROR: failed to write\n");
+        //            goto clientsocket_cleanup;
+        //        }
+
+    }
+
+    printf("Shutdown complete\n");
+    close(connd);
+servsocket_cleanup:
+    close(sockfd);
+end:
+    return ret;
+}
+
+void *
+ubpf_packet_data(){
+    return NULL;
+}
+
+int
 main(int argc, char** argv)
 {
     struct option longopts[] = {
@@ -196,7 +334,7 @@ main(int argc, char** argv)
 
     const char* mem_filename = NULL;
     const char* main_function_name = NULL;
-    bool jit = false;
+    bool jit = true; // changed here.
     bool unload = false;
     bool reload = false;
     bool data_relocation = false; // treat R_BPF_64_64 as relocations to maps by default.
@@ -332,13 +470,17 @@ load:
             free(mem);
             return 1;
         }
-        ret = fn(mem, mem_len);
+        receive_packets(fn);
+//        while(1) {
+//            ret = fn(mem, mem_len);
+//            printf("0x%" PRIx64 "\n", ret);
+//        }
     } else {
         if (ubpf_exec(vm, mem, mem_len, &ret) < 0)
             ret = UINT64_MAX;
     }
 
-    printf("0x%" PRIx64 "\n", ret);
+//    printf("0x%" PRIx64 "\n", ret);
 
     ubpf_destroy(vm);
     free(mem);
@@ -522,6 +664,7 @@ register_functions(struct ubpf_vm* vm)
     ubpf_register(vm, 3, "sqrti", sqrti);
     ubpf_register(vm, 4, "strcmp_ext", strcmp);
     ubpf_register(vm, 5, "unwind", unwind);
+    ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
     ubpf_set_unwind_function_index(vm, 5);
     ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_lookup_elem, "bpf_map_lookup_elem", bpf_map_lookup_elem_impl);
     ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_update_elem, "bpf_map_update_elem", bpf_map_update_elem_impl);
