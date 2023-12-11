@@ -9,13 +9,16 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+cmake-build-debug/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
+install/
 lib/
 lib64/
+libbpf/
 parts/
 sdist/
 var/
