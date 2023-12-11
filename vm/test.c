@@ -90,6 +90,7 @@ static int _map_entries_count = 0;
 static int _map_entries_capacity = 0;
 static uint8_t* _global_data = NULL;
 static uint64_t _global_data_size = 0;
+static char buff[4096];
 
 uint64_t
 do_data_relocation(
@@ -193,7 +194,6 @@ receive_packets(ubpf_jit_fn fn)
     struct sockaddr_in servAddr;
     struct sockaddr_in clientAddr;
     socklen_t          size = sizeof(clientAddr);
-    char               buff[4096];
     size_t             buff_size;
     size_t             buff_count;
     uint64_t           fn_ret;
@@ -312,7 +312,8 @@ end:
 
 void *
 ubpf_packet_data(){
-    return NULL;
+    printf("ここまではsafe\n");
+    return &(buff[0]);
 }
 
 int
