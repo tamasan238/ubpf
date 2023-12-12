@@ -90,7 +90,7 @@ static int _map_entries_count = 0;
 static int _map_entries_capacity = 0;
 static uint8_t* _global_data = NULL;
 static uint64_t _global_data_size = 0;
-static char buff[4096];
+static char buff[UINT16_MAX];
 
 uint64_t
 do_data_relocation(
@@ -285,9 +285,13 @@ receive_packets(ubpf_jit_fn fn)
                 ret = -1;
                 close(sockfd);
             }
-            printf("Client: packet[%d]: %s\n", i, buff);
+//            printf("Client: packet[%d]: %s\n", i, buff);
+            printf("Client: packet[%d]: \n", i);
+            for (int j = 0; j < buff_size; j++)
+                printf("%02X", buff[j]);
+            puts("");
 
-            fn_ret = fn(buff, buff_size);
+            fn_ret = fn(&(buff[0]), buff_size);
             printf("0x%" PRIx64 "\n", fn_ret);
         }
 
@@ -311,9 +315,10 @@ end:
 }
 
 void *
-ubpf_packet_data(){
+ubpf_packet_data(void *packet_data){
     printf("ここまではsafe\n");
-    return &(buff[0]);
+    return packet_data;
+//    return &(buff[0]);
 }
 
 int
