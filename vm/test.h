@@ -24,7 +24,6 @@
 
 #include <stdarg.h>
 #include "time.h"
-#include "lookup3.h"
 
 #define MAX_INSTS 65536
 #define STACK_SIZE 1024
@@ -96,12 +95,12 @@ enum ubpf_arg_size {
     SIZE_PTR_MAX,
 };
 
-struct ubpf_func_proto {
-    ext_func func;
-    enum ubpf_reg_type arg_types[NB_FUNC_ARGS];
-    enum ubpf_arg_size arg_sizes[NB_FUNC_ARGS];
-    enum ubpf_reg_type ret;
-};
+//struct ubpf_func_proto {
+//    ext_func func;
+//    enum ubpf_reg_type arg_types[NB_FUNC_ARGS];
+//    enum ubpf_arg_size arg_sizes[NB_FUNC_ARGS];
+//    enum ubpf_reg_type ret;
+//};
 
 enum ubpf_map_type {
     UBPF_MAP_TYPE_ARRAY = 1,
