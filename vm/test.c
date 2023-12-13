@@ -317,7 +317,6 @@ end:
 
 void *
 ubpf_packet_data(void *packet_data){
-    printf("ここまではsafe\n");
     return packet_data;
 //    return &(buff[0]);
 }
