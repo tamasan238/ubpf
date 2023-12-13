@@ -38,6 +38,7 @@
 #include <unistd.h>
 
 #include "../bpf/bpf.h"
+#include "test.h"
 
 #if defined(UBPF_HAS_ELF_H)
 #if defined(UBPF_HAS_ELF_H_COMPAT)
@@ -548,61 +549,61 @@ memfrob(void* s, size_t n)
 }
 #endif
 
-static uint64_t
-gather_bytes(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e)
-{
-    return ((uint64_t)a << 32) | ((uint32_t)b << 24) | ((uint32_t)c << 16) | ((uint16_t)d << 8) | e;
-}
+//static uint64_t
+//gather_bytes(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e)
+//{
+//    return ((uint64_t)a << 32) | ((uint32_t)b << 24) | ((uint32_t)c << 16) | ((uint16_t)d << 8) | e;
+//}
 
-static void
-trash_registers(void)
-{
-    /* Overwrite all caller-save registers */
-#if __x86_64__
-    asm("mov $0xf0, %rax;"
-        "mov $0xf1, %rcx;"
-        "mov $0xf2, %rdx;"
-        "mov $0xf3, %rsi;"
-        "mov $0xf4, %rdi;"
-        "mov $0xf5, %r8;"
-        "mov $0xf6, %r9;"
-        "mov $0xf7, %r10;"
-        "mov $0xf8, %r11;");
-#elif __aarch64__
-    asm("mov w0, #0xf0;"
-        "mov w1, #0xf1;"
-        "mov w2, #0xf2;"
-        "mov w3, #0xf3;"
-        "mov w4, #0xf4;"
-        "mov w5, #0xf5;"
-        "mov w6, #0xf6;"
-        "mov w7, #0xf7;"
-        "mov w8, #0xf8;"
-        "mov w9, #0xf9;"
-        "mov w10, #0xfa;"
-        "mov w11, #0xfb;"
-        "mov w12, #0xfc;"
-        "mov w13, #0xfd;"
-        "mov w14, #0xfe;"
-        "mov w15, #0xff;" ::
-            : "w0", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8", "w9", "w10", "w11", "w12", "w13", "w14", "w15");
-#else
-    fprintf(stderr, "trash_registers not implemented for this architecture.\n");
-    exit(1);
-#endif
-}
-
-static uint32_t
-sqrti(uint32_t x)
-{
-    return sqrt(x);
-}
-
-static uint64_t
-unwind(uint64_t i)
-{
-    return i;
-}
+//static void
+//trash_registers(void)
+//{
+//    /* Overwrite all caller-save registers */
+//#if __x86_64__
+//    asm("mov $0xf0, %rax;"
+//        "mov $0xf1, %rcx;"
+//        "mov $0xf2, %rdx;"
+//        "mov $0xf3, %rsi;"
+//        "mov $0xf4, %rdi;"
+//        "mov $0xf5, %r8;"
+//        "mov $0xf6, %r9;"
+//        "mov $0xf7, %r10;"
+//        "mov $0xf8, %r11;");
+//#elif __aarch64__
+//    asm("mov w0, #0xf0;"
+//        "mov w1, #0xf1;"
+//        "mov w2, #0xf2;"
+//        "mov w3, #0xf3;"
+//        "mov w4, #0xf4;"
+//        "mov w5, #0xf5;"
+//        "mov w6, #0xf6;"
+//        "mov w7, #0xf7;"
+//        "mov w8, #0xf8;"
+//        "mov w9, #0xf9;"
+//        "mov w10, #0xfa;"
+//        "mov w11, #0xfb;"
+//        "mov w12, #0xfc;"
+//        "mov w13, #0xfd;"
+//        "mov w14, #0xfe;"
+//        "mov w15, #0xff;" ::
+//            : "w0", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8", "w9", "w10", "w11", "w12", "w13", "w14", "w15");
+//#else
+//    fprintf(stderr, "trash_registers not implemented for this architecture.\n");
+//    exit(1);
+//#endif
+//}
+//
+//static uint32_t
+//sqrti(uint32_t x)
+//{
+//    return sqrt(x);
+//}
+//
+//static uint64_t
+//unwind(uint64_t i)
+//{
+//    return i;
+//}
 
 static void*
 bpf_map_lookup_elem_impl(struct bpf_map* map, const void* key)
@@ -661,16 +662,346 @@ bpf_map_delete_elem_impl(struct bpf_map* map, const void* key)
     }
 }
 
+void *
+ubpf_map_lookup(const struct ubpf_map *map, void *key)
+{
+    if (OVS_UNLIKELY(!map)) {
+        return NULL;
+    }
+    if (OVS_UNLIKELY(!map->ops.map_lookup)) {
+        return NULL;
+    }
+    if (OVS_UNLIKELY(!key)) {
+        return NULL;
+    }
+    return map->ops.map_lookup(map, key);
+}
+
+struct ubpf_func_proto ubpf_map_lookup_proto = {
+        .func = (ext_func)ubpf_map_lookup,
+        .arg_types = {
+                MAP_PTR,
+                PKT_PTR | MAP_VALUE_PTR | STACK_PTR | UNKNOWN,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                SIZE_MAP_KEY,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = MAP_VALUE_PTR | NULL_VALUE,
+};
+
+int
+ubpf_map_update(struct ubpf_map *map, const void *key, void *item)
+{
+    if (OVS_UNLIKELY(!map)) {
+        return -1;
+    }
+    if (OVS_UNLIKELY(!map->ops.map_update)) {
+        return -2;
+    }
+    if (OVS_UNLIKELY(!key)) {
+        return -3;
+    }
+    if (OVS_UNLIKELY(!item)) {
+        return -4;
+    }
+    return map->ops.map_update(map, key, item);
+}
+
+struct ubpf_func_proto ubpf_map_update_proto = {
+        .func = (ext_func)ubpf_map_update,
+        .arg_types = {
+                MAP_PTR,
+                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
+                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                SIZE_MAP_KEY,
+                SIZE_MAP_VALUE,
+                0xff,
+                0xff,
+        },
+        .ret = UNKNOWN,
+};
+
+static int
+ubpf_map_add(struct ubpf_map *map, void *item)
+{
+    if (OVS_UNLIKELY(!map)) {
+        return -1;
+    }
+    if (OVS_UNLIKELY(!map->ops.map_add)) {
+        return -2;
+    }
+    if (OVS_UNLIKELY(!item)) {
+        return -3;
+    }
+    return map->ops.map_add(map, item);
+}
+
+struct ubpf_func_proto ubpf_map_add_proto = {
+        .func = (ext_func)ubpf_map_add,
+        .arg_types = {
+                MAP_PTR,
+                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                SIZE_MAP_VALUE,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = UNKNOWN,
+};
+
+static int
+ubpf_map_delete(struct ubpf_map *map, const void *key)
+{
+    if (OVS_UNLIKELY(!map)) {
+        return -1;
+    }
+    if (OVS_UNLIKELY(!map->ops.map_delete)) {
+        return -2;
+    }
+    if (OVS_UNLIKELY(!key)) {
+        return -3;
+    }
+    return map->ops.map_delete(map, key);
+}
+
+struct ubpf_func_proto ubpf_map_delete_proto = {
+        .func = (ext_func)ubpf_map_delete,
+        .arg_types = {
+                MAP_PTR,
+                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                SIZE_MAP_KEY,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = UNKNOWN,
+};
+
+static void
+ubpf_printf(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+//    char str[MAX_PRINTF_LENGTH];
+//    if (vsnprintf(str, MAX_PRINTF_LENGTH, fmt, args) >= 0)
+//        VLOG_INFO("%s", str);
+    va_end(args);
+}
+
+struct ubpf_func_proto ubpf_printf_proto = {
+        .func = (ext_func)ubpf_printf,
+        .arg_types = {
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = UNINIT,
+};
+
+static uint64_t
+ubpf_time_get_ns(void)
+{
+    struct timespec curr_time = {0, 0};
+    uint64_t curr_time_ns = 0;
+    clock_gettime(CLOCK_REALTIME, &curr_time);
+    curr_time_ns = curr_time.tv_nsec + curr_time.tv_sec * 1.0e9;
+    return curr_time_ns;
+}
+
+struct ubpf_func_proto ubpf_time_get_ns_proto = {
+        .func = (ext_func)ubpf_time_get_ns,
+        .arg_types = {
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = UNKNOWN,
+};
+
+static uint32_t
+//ubpf_hash(void *item, uint64_t size)
+        ubpf_hash()
+{
+//    return hashlittle(item, (uint32_t)size, 0);
+return 0;
+}
+
+struct ubpf_func_proto ubpf_hash_proto = {
+        .func = (ext_func)ubpf_hash,
+        .arg_types = {
+                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
+                IMM,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                SIZE_PTR_MAX,
+                SIZE_64,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = UNKNOWN,
+};
+
+//void *
+//ubpf_adjust_head(void* ctx, int offset) {
+//    struct dp_packet *packet = (struct dp_packet *) ctx;
+//
+//    void *pkt = NULL;
+//    if (offset >= 0)  // encapsulation
+//        pkt = dp_packet_push_zeros(packet, offset);
+//    else {  // decapsulation
+//        dp_packet_reset_packet(packet, abs(offset));
+//        pkt = dp_packet_data(packet);
+//    }
+//
+//    return pkt;
+//}
+
+void *
+ubpf_adjust_head() {
+    return 0;
+}
+
+struct ubpf_func_proto ubpf_adjust_head_proto = {
+        .func = (ext_func)ubpf_adjust_head,
+        .arg_types = {
+                CTX_PTR,
+                IMM,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = PKT_PTR,
+};
+
+//void *
+//ubpf_packet_data(void *ctx)
+//{
+//    struct dp_packet *packet = (struct dp_packet *) ctx;
+//    return dp_packet_data(packet);
+//}
+
+struct ubpf_func_proto ubpf_packet_data_proto = {
+        .func = (ext_func)ubpf_packet_data,
+        .arg_types = {
+                CTX_PTR,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = PKT_PTR,
+};
+
+static uint32_t
+//ubpf_get_rss_hash(void *ctx)
+ubpf_get_rss_hash()
+{
+//    struct dp_packet *packet = (struct dp_packet *) ctx;
+//    return dp_packet_get_rss_hash(packet);
+    return 0;
+}
+
+struct ubpf_func_proto ubpf_get_rss_hash_proto = {
+        .func = (ext_func)ubpf_get_rss_hash,
+        .arg_types = {
+                PKT_PTR,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .arg_sizes = {
+                SIZE_PTR_MAX,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+        },
+        .ret = UNKNOWN,
+};
+
 static void
 register_functions(struct ubpf_vm* vm)
 {
-    ubpf_register(vm, 0, "gather_bytes", gather_bytes);
-    ubpf_register(vm, 1, "memfrob", memfrob);
-    ubpf_register(vm, 2, "trash_registers", trash_registers);
-    ubpf_register(vm, 3, "sqrti", sqrti);
-    ubpf_register(vm, 4, "strcmp_ext", strcmp);
-    ubpf_register(vm, 5, "unwind", unwind);
+//    ubpf_register(vm, 0, "gather_bytes", gather_bytes);
+//    ubpf_register(vm, 1, "memfrob", memfrob);
+//    ubpf_register(vm, 2, "trash_registers", trash_registers);
+//    ubpf_register(vm, 3, "sqrti", sqrti);
+//    ubpf_register(vm, 4, "strcmp_ext", strcmp);
+//    ubpf_register(vm, 5, "unwind", unwind);
+//    ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
+
+    ubpf_register(vm, 1, "ubpf_map_lookup", ubpf_map_lookup);
+    ubpf_register(vm, 2, "ubpf_map_update", ubpf_map_update);
+    ubpf_register(vm, 3, "ubpf_map_delete", ubpf_map_delete);
+    ubpf_register(vm, 4, "ubpf_map_add", ubpf_map_add);
+    ubpf_register(vm, 5, "ubpf_time_get_ns", ubpf_time_get_ns);
+    ubpf_register(vm, 6, "ubpf_hash", ubpf_hash);
+    ubpf_register(vm, 7, "ubpf_printf", ubpf_printf);
+    ubpf_register(vm, UBPF_ADJUST_HEAD_ID, "ubpf_adjust_head", ubpf_adjust_head);
     ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
+    ubpf_register(vm, 10, "ubpf_get_rss_hash", ubpf_get_rss_hash);
+
     ubpf_set_unwind_function_index(vm, 5);
     ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_lookup_elem, "bpf_map_lookup_elem", bpf_map_lookup_elem_impl);
     ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_update_elem, "bpf_map_update_elem", bpf_map_update_elem_impl);
