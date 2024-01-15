@@ -194,8 +194,8 @@ receive_packets(ubpf_jit_fn fn)
     struct sockaddr_in clientAddr;
     socklen_t          size = sizeof(clientAddr);
     size_t             buff_size;
-//    size_t             buff_count;
     uint64_t           fn_ret;
+    char               result[2];
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         fprintf(stderr, "ERROR: failed to create the socket\n");
@@ -259,7 +259,10 @@ receive_packets(ubpf_jit_fn fn)
         fn_ret = fn(&(buff[0]), buff_size);
         printf("0x%" PRIx64 "\n", fn_ret);
 
-        if ((ret = write(connd, &fn_ret, 1)) != 1) {
+        result[0]='0'+fn_ret;
+        result[1]='\0';
+
+        if ((ret = write(connd, &result, sizeof(result))) != 2) {
             fprintf(stderr, "ERROR: failed to write\n");
             goto servsocket_cleanup;
         }
