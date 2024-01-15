@@ -36,7 +36,8 @@ set(public_header_list
 
 add_library("ubpf"
   ${public_header_list}
-
+  dp-packet.c
+  lookup3.c
   ebpf.h
   ubpf_int.h
   ubpf_jit_arm64.c

@@ -29,13 +29,11 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
-#include <math.h>
 #include "ubpf.h"
+#include "lookup3.h"
 
 #include <sys/socket.h>
-#include <arpa/inet.h>
 #include <netinet/in.h>
-#include <unistd.h>
 
 #include "../bpf/bpf.h"
 #include "test.h"
@@ -189,14 +187,14 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
 int
 receive_packets(ubpf_jit_fn fn)
 {
-    int                ret;
+    int                ret=0;
     int                sockfd;
     int                connd;
     struct sockaddr_in servAddr;
     struct sockaddr_in clientAddr;
     socklen_t          size = sizeof(clientAddr);
     size_t             buff_size;
-    size_t             buff_count;
+//    size_t             buff_count;
     uint64_t           fn_ret;
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -235,90 +233,43 @@ receive_packets(ubpf_jit_fn fn)
     printf("Client connected successfully\n");
 
     while (1) {
-        // size of batch
+        // size of packet
         buff_size = 0;
         if (read(connd, &buff_size, sizeof(int)) == -1) {
-            fprintf(stderr, "ERROR: failed to read | size of batch\n");
-            ret = -1;
+            fprintf(stderr, "ERROR: failed to read | size of packet\n");
             close(sockfd);
         }
-
         if (buff_size == *(int *)"shut") {
             printf("Shutdown command issued!\n");
             break;
         }
-        printf("Client: size of batch: %ld\n", buff_size);
+        printf("Client: size of packet: %ld\n",  buff_size);
 
-        // batch
+        // packet
         memset(buff, 0, sizeof(buff));
         if (read(connd, buff, buff_size) == -1) {
-            fprintf(stderr, "ERROR: failed to read | batch\n");
-            ret = -1;
+            fprintf(stderr, "ERROR: failed to read | packet\n");
             close(sockfd);
         }
-        printf("Client: batch: %s\n", buff);
+        printf("Client: packet: \n");
+        for (int j = 0; j < buff_size; j++)
+            printf("%02X", buff[j]);
+        puts("");
 
-        // how many packets
-        buff_count = 0;
-        if (read(connd, &buff_count, sizeof(size_t)) == -1) {
-            fprintf(stderr, "ERROR: failed to read | packets count\n");
-            ret = -1;
-            close(sockfd);
-            exit(1);
+        fn_ret = fn(&(buff[0]), buff_size);
+        printf("0x%" PRIx64 "\n", fn_ret);
+
+        if ((ret = write(connd, &fn_ret, 1)) != 1) {
+            fprintf(stderr, "ERROR: failed to write\n");
+            goto servsocket_cleanup;
         }
-        printf("Client: packets count: %ld\n", buff_count);
-
-        // packets
-        for(int i=0; i<buff_count; i++){
-            // size of packet
-            buff_size = 0;
-            if (read(connd, &buff_size, sizeof(int)) == -1) {
-                fprintf(stderr, "ERROR: failed to read | size of packet\n");
-                ret = -1;
-                close(sockfd);
-            }
-            printf("Client: size of packet[%d]: %ld\n", i, buff_size);
-
-            // packet
-            memset(buff, 0, sizeof(buff));
-            if (read(connd, buff, buff_size) == -1) {
-                fprintf(stderr, "ERROR: failed to read | packet\n");
-                ret = -1;
-                close(sockfd);
-            }
-//            printf("Client: packet[%d]: %s\n", i, buff);
-            printf("Client: packet[%d]: \n", i);
-            for (int j = 0; j < buff_size; j++)
-                printf("%02X", buff[j]);
-            puts("");
-
-            fn_ret = fn(&(buff[0]), buff_size);
-            printf("0x%" PRIx64 "\n", fn_ret);
-        }
-
-        //        memset(buff, 0, sizeof(buff));
-        //        memcpy(buff, reply, strlen(reply));
-        //        len = strnlen(buff, sizeof(buff));
-        //
-        //        if ((ret = write(connd, buff, len)) != len) {
-        //            fprintf(stderr, "ERROR: failed to write\n");
-        //            goto clientsocket_cleanup;
-        //        }
-
     }
-
     printf("Shutdown complete\n");
     close(connd);
 servsocket_cleanup:
     close(sockfd);
 end:
     return ret;
-}
-
-void *
-ubpf_packet_data(void *packet_data){
-    return packet_data;
-//    return &(buff[0]);
 }
 
 int
@@ -477,16 +428,10 @@ load:
             return 1;
         }
         receive_packets(fn);
-//        while(1) {
-//            ret = fn(mem, mem_len);
-//            printf("0x%" PRIx64 "\n", ret);
-//        }
     } else {
         if (ubpf_exec(vm, mem, mem_len, &ret) < 0)
             ret = UINT64_MAX;
     }
-
-//    printf("0x%" PRIx64 "\n", ret);
 
     ubpf_destroy(vm);
     free(mem);
@@ -547,62 +492,6 @@ memfrob(void* s, size_t n)
     return s;
 }
 #endif
-
-//static uint64_t
-//gather_bytes(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e)
-//{
-//    return ((uint64_t)a << 32) | ((uint32_t)b << 24) | ((uint32_t)c << 16) | ((uint16_t)d << 8) | e;
-//}
-
-//static void
-//trash_registers(void)
-//{
-//    /* Overwrite all caller-save registers */
-//#if __x86_64__
-//    asm("mov $0xf0, %rax;"
-//        "mov $0xf1, %rcx;"
-//        "mov $0xf2, %rdx;"
-//        "mov $0xf3, %rsi;"
-//        "mov $0xf4, %rdi;"
-//        "mov $0xf5, %r8;"
-//        "mov $0xf6, %r9;"
-//        "mov $0xf7, %r10;"
-//        "mov $0xf8, %r11;");
-//#elif __aarch64__
-//    asm("mov w0, #0xf0;"
-//        "mov w1, #0xf1;"
-//        "mov w2, #0xf2;"
-//        "mov w3, #0xf3;"
-//        "mov w4, #0xf4;"
-//        "mov w5, #0xf5;"
-//        "mov w6, #0xf6;"
-//        "mov w7, #0xf7;"
-//        "mov w8, #0xf8;"
-//        "mov w9, #0xf9;"
-//        "mov w10, #0xfa;"
-//        "mov w11, #0xfb;"
-//        "mov w12, #0xfc;"
-//        "mov w13, #0xfd;"
-//        "mov w14, #0xfe;"
-//        "mov w15, #0xff;" ::
-//            : "w0", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8", "w9", "w10", "w11", "w12", "w13", "w14", "w15");
-//#else
-//    fprintf(stderr, "trash_registers not implemented for this architecture.\n");
-//    exit(1);
-//#endif
-//}
-//
-//static uint32_t
-//sqrti(uint32_t x)
-//{
-//    return sqrt(x);
-//}
-//
-//static uint64_t
-//unwind(uint64_t i)
-//{
-//    return i;
-//}
 
 static void*
 bpf_map_lookup_elem_impl(struct bpf_map* map, const void* key)
@@ -676,25 +565,6 @@ ubpf_map_lookup(const struct ubpf_map *map, void *key)
     return map->ops.map_lookup(map, key);
 }
 
-//struct ubpf_func_proto ubpf_map_lookup_proto = {
-//        .func = (ext_func)ubpf_map_lookup,
-//        .arg_types = {
-//                MAP_PTR,
-//                PKT_PTR | MAP_VALUE_PTR | STACK_PTR | UNKNOWN,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                SIZE_MAP_KEY,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = MAP_VALUE_PTR | NULL_VALUE,
-//};
-
 int
 ubpf_map_update(struct ubpf_map *map, const void *key, void *item)
 {
@@ -713,25 +583,6 @@ ubpf_map_update(struct ubpf_map *map, const void *key, void *item)
     return map->ops.map_update(map, key, item);
 }
 
-//struct ubpf_func_proto ubpf_map_update_proto = {
-//        .func = (ext_func)ubpf_map_update,
-//        .arg_types = {
-//                MAP_PTR,
-//                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
-//                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                SIZE_MAP_KEY,
-//                SIZE_MAP_VALUE,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = UNKNOWN,
-//};
-
 static int
 ubpf_map_add(struct ubpf_map *map, void *item)
 {
@@ -746,25 +597,6 @@ ubpf_map_add(struct ubpf_map *map, void *item)
     }
     return map->ops.map_add(map, item);
 }
-
-//struct ubpf_func_proto ubpf_map_add_proto = {
-//        .func = (ext_func)ubpf_map_add,
-//        .arg_types = {
-//                MAP_PTR,
-//                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                SIZE_MAP_VALUE,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = UNKNOWN,
-//};
 
 static int
 ubpf_map_delete(struct ubpf_map *map, const void *key)
@@ -781,54 +613,13 @@ ubpf_map_delete(struct ubpf_map *map, const void *key)
     return map->ops.map_delete(map, key);
 }
 
-//struct ubpf_func_proto ubpf_map_delete_proto = {
-//        .func = (ext_func)ubpf_map_delete,
-//        .arg_types = {
-//                MAP_PTR,
-//                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                SIZE_MAP_KEY,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = UNKNOWN,
-//};
-
 static void
 ubpf_printf(const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-//    char str[MAX_PRINTF_LENGTH];
-//    if (vsnprintf(str, MAX_PRINTF_LENGTH, fmt, args) >= 0)
-//        VLOG_INFO("%s", str);
     va_end(args);
 }
-
-//struct ubpf_func_proto ubpf_printf_proto = {
-//        .func = (ext_func)ubpf_printf,
-//        .arg_types = {
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = UNINIT,
-//};
 
 static uint64_t
 ubpf_time_get_ns(void)
@@ -840,156 +631,44 @@ ubpf_time_get_ns(void)
     return curr_time_ns;
 }
 
-//struct ubpf_func_proto ubpf_time_get_ns_proto = {
-//        .func = (ext_func)ubpf_time_get_ns,
-//        .arg_types = {
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = UNKNOWN,
-//};
-
 static uint32_t
-//ubpf_hash(void *item, uint64_t size)
-        ubpf_hash()
+ubpf_hash(void *item, uint64_t size)
 {
-//    return hashlittle(item, (uint32_t)size, 0);
-return 0;
+    return hashlittle(item, (uint32_t)size, 0);
 }
-
-//struct ubpf_func_proto ubpf_hash_proto = {
-//        .func = (ext_func)ubpf_hash,
-//        .arg_types = {
-//                PKT_PTR | MAP_VALUE_PTR | STACK_PTR,
-//                IMM,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                SIZE_PTR_MAX,
-//                SIZE_64,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = UNKNOWN,
-//};
-
-//void *
-//ubpf_adjust_head(void* ctx, int offset) {
-//    struct dp_packet *packet = (struct dp_packet *) ctx;
-//
-//    void *pkt = NULL;
-//    if (offset >= 0)  // encapsulation
-//        pkt = dp_packet_push_zeros(packet, offset);
-//    else {  // decapsulation
-//        dp_packet_reset_packet(packet, abs(offset));
-//        pkt = dp_packet_data(packet);
-//    }
-//
-//    return pkt;
-//}
 
 void *
-ubpf_adjust_head() {
-    return 0;
+ubpf_adjust_head(void* ctx, int offset) {
+    struct dp_packet *packet = (struct dp_packet *) ctx;
+
+    void *pkt = NULL;
+    if (offset >= 0)  // encapsulation
+        pkt = dp_packet_push_zeros(packet, offset);
+    else {  // decapsulation
+        dp_packet_reset_packet(packet, abs(offset));
+        pkt = dp_packet_data(packet);
+    }
+
+    return pkt;
 }
 
-//struct ubpf_func_proto ubpf_adjust_head_proto = {
-//        .func = (ext_func)ubpf_adjust_head,
-//        .arg_types = {
-//                CTX_PTR,
-//                IMM,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = PKT_PTR,
-//};
-
-//void *
-//ubpf_packet_data(void *ctx)
-//{
-//    struct dp_packet *packet = (struct dp_packet *) ctx;
-//    return dp_packet_data(packet);
-//}
-
-//struct ubpf_func_proto ubpf_packet_data_proto = {
-//        .func = (ext_func)ubpf_packet_data,
-//        .arg_types = {
-//                CTX_PTR,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = PKT_PTR,
-//};
+void *
+ubpf_packet_data(void *ctx)
+{
+    struct dp_packet *packet = (struct dp_packet *) ctx;
+    return dp_packet_data(packet);
+}
 
 static uint32_t
-//ubpf_get_rss_hash(void *ctx)
-ubpf_get_rss_hash()
+ubpf_get_rss_hash(void *ctx)
 {
-//    struct dp_packet *packet = (struct dp_packet *) ctx;
-//    return dp_packet_get_rss_hash(packet);
-    return 0;
+    struct dp_packet *packet = (struct dp_packet *) ctx;
+    return dp_packet_get_rss_hash(packet);
 }
-
-//struct ubpf_func_proto ubpf_get_rss_hash_proto = {
-//        .func = (ext_func)ubpf_get_rss_hash,
-//        .arg_types = {
-//                PKT_PTR,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .arg_sizes = {
-//                SIZE_PTR_MAX,
-//                0xff,
-//                0xff,
-//                0xff,
-//                0xff,
-//        },
-//        .ret = UNKNOWN,
-//};
 
 static void
 register_functions(struct ubpf_vm* vm)
 {
-//    ubpf_register(vm, 0, "gather_bytes", gather_bytes);
-//    ubpf_register(vm, 1, "memfrob", memfrob);
-//    ubpf_register(vm, 2, "trash_registers", trash_registers);
-//    ubpf_register(vm, 3, "sqrti", sqrti);
-//    ubpf_register(vm, 4, "strcmp_ext", strcmp);
-//    ubpf_register(vm, 5, "unwind", unwind);
-//    ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
-
     ubpf_register(vm, 1, "ubpf_map_lookup", ubpf_map_lookup);
     ubpf_register(vm, 2, "ubpf_map_update", ubpf_map_update);
     ubpf_register(vm, 3, "ubpf_map_delete", ubpf_map_delete);
