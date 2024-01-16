@@ -34,6 +34,7 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <time.h>
 
 #include "../bpf/bpf.h"
 #include "test.h"
@@ -669,6 +670,12 @@ ubpf_get_rss_hash(void *ctx)
     return dp_packet_get_rss_hash(packet);
 }
 
+int
+getResult()
+{
+    return time(NULL)%2;
+}
+
 static void
 register_functions(struct ubpf_vm* vm)
 {
@@ -682,6 +689,7 @@ register_functions(struct ubpf_vm* vm)
     ubpf_register(vm, UBPF_ADJUST_HEAD_ID, "ubpf_adjust_head", ubpf_adjust_head);
     ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
     ubpf_register(vm, 10, "ubpf_get_rss_hash", ubpf_get_rss_hash);
+    ubpf_register(vm, 20, "getResult", getResult);
 
     ubpf_set_unwind_function_index(vm, 5);
     ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_lookup_elem, "bpf_map_lookup_elem", bpf_map_lookup_elem_impl);
