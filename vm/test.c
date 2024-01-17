@@ -560,12 +560,15 @@ void *
 ubpf_map_lookup(const struct ubpf_map *map, void *key)
 {
     if (OVS_UNLIKELY(!map)) {
+        printf("reason a\n");
         return NULL;
     }
     if (OVS_UNLIKELY(!map->ops.map_lookup)) {
+        printf("reason b\n");
         return NULL;
     }
     if (OVS_UNLIKELY(!key)) {
+        printf("reason c\n");
         return NULL;
     }
     return map->ops.map_lookup(map, key);
