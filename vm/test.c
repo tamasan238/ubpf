@@ -29,6 +29,8 @@
 #include <string.h>
 #include <getopt.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include "ubpf.h"
 #include "lookup3.h"
 
@@ -673,7 +675,35 @@ ubpf_get_rss_hash(void *ctx)
 int
 getResult()
 {
-    return time(NULL)%2;
+    int fd, ret;
+    char *map_region;
+
+    fd = open("/dev/uio0", O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        exit(1);
+    }
+
+    map_region = mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd, 4096);
+    if (map_region < 0) {
+        perror("mmap");
+        exit(1);
+    }
+
+//    printf("mapped to %p\n", map_region);
+//    printf("shm: %s\n", map_region);
+
+    if (strcmp(map_region, "drop") == 0) {
+        ret = 0;
+    } else if (strcmp(map_region, "pass") == 0) {
+        ret = 1;
+    } else {
+        ret = -1;
+    }
+
+    munmap(map_region, 4096);
+    close(fd);
+    return ret;
 }
 
 static void
