@@ -706,6 +706,12 @@ getResult()
     return ret;
 }
 
+void
+myPrintf(int i)
+{
+    printf("%d\n", i);
+}
+
 static void
 register_functions(struct ubpf_vm* vm)
 {
@@ -720,6 +726,7 @@ register_functions(struct ubpf_vm* vm)
     ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
     ubpf_register(vm, 10, "ubpf_get_rss_hash", ubpf_get_rss_hash);
     ubpf_register(vm, 20, "getResult", getResult);
+    ubpf_register(vm, 21, "myPrintf", myPrintf);
 
     ubpf_set_unwind_function_index(vm, 5);
     ubpf_register(vm, (unsigned int)(uintptr_t)bpf_map_lookup_elem, "bpf_map_lookup_elem", bpf_map_lookup_elem_impl);
