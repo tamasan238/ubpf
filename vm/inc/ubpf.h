@@ -61,7 +61,9 @@ extern "C"
     /**
      * @brief Opaque type for a uBPF JIT compiled function.
      */
-    typedef uint64_t (*ubpf_jit_fn)(void* mem, size_t mem_len);
+    //typedef uint64_t (*ubpf_jit_fn)(void* mem, size_t mem_len);
+    struct standard_metadata;
+    typedef uint64_t (*ubpf_jit_fn)(void* mem, struct standard_metadata *std_meta);
 
     /**
      * @brief Create a new uBPF VM.

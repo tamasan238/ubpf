@@ -58,6 +58,22 @@ readfile(const char* path, size_t maxlen, size_t* len);
 static void
 register_functions(struct ubpf_vm* vm);
 
+enum ubpf_action{
+ABORT,
+DROP,
+PASS,
+REDIRECT,
+};
+
+struct standard_metadata {
+    uint32_t input_port; /* bit<32> */
+    uint32_t packet_length; /* bit<32> */
+    enum ubpf_action output_action; /* ubpf_action */
+    uint32_t output_port; /* bit<32> */
+    uint8_t clone; /* bool */
+    uint32_t clone_port; /* bit<32> */
+};
+
 static void
 usage(const char* name)
 {
@@ -259,7 +275,10 @@ receive_packets(ubpf_jit_fn fn)
             printf("%02X", buff[j]);
         puts("");
 
-        fn_ret = fn(&(buff[0]), buff_size);
+        //fn_ret = fn(&(buff[0]), buff_size);
+        struct standard_metadata std_meta;
+	std_meta.packet_length = buff_size;
+	fn_ret = fn(&(buff[0]), &std_meta);
         printf("0x%" PRIx64 "\n", fn_ret);
 
         result[0]='0'+fn_ret;
@@ -660,6 +679,15 @@ ubpf_adjust_head(void* ctx, int offset) {
     return pkt;
 }
 
+/*
+void *
+ubpf_adjust_head(void* ctx)
+{
+    struct dp_packet *packet = (struct dp_packet *) ctx;
+    return packet;
+}
+*/
+
 void *
 ubpf_packet_data(void *ctx)
 {
@@ -672,6 +700,12 @@ ubpf_get_rss_hash(void *ctx)
 {
     struct dp_packet *packet = (struct dp_packet *) ctx;
     return dp_packet_get_rss_hash(packet);
+}
+
+static uint32_t
+ubpf_truncate_packet()
+{
+    return 0;
 }
 
 int
@@ -724,9 +758,10 @@ register_functions(struct ubpf_vm* vm)
     ubpf_register(vm, 5, "ubpf_time_get_ns", ubpf_time_get_ns);
     ubpf_register(vm, 6, "ubpf_hash", ubpf_hash);
     ubpf_register(vm, 7, "ubpf_printf", ubpf_printf);
-    ubpf_register(vm, UBPF_ADJUST_HEAD_ID, "ubpf_adjust_head", ubpf_adjust_head);
+    ubpf_register(vm, 8, "ubpf_adjust_head", ubpf_adjust_head);
     ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
     ubpf_register(vm, 10, "ubpf_get_rss_hash", ubpf_get_rss_hash);
+    ubpf_register(vm, 11, "ubpf_truncate_packet", ubpf_truncate_packet);
     ubpf_register(vm, 20, "getResult", getResult);
     ubpf_register(vm, 21, "myPrintf", myPrintf);
 
