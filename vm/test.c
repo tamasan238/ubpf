@@ -214,7 +214,7 @@ receive_packets(ubpf_jit_fn fn)
 
     struct dp_packet_p4 *dp_packet2;
     uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
-    void               *packet;
+    char               *packet;
 
     uint64_t           fn_ret;
     char               result[2];
@@ -256,7 +256,12 @@ receive_packets(ubpf_jit_fn fn)
 
     while (1) {
         // dp_packet2
+        printf("dp_packet2_size: %ld\n", dp_packet2_size);
         dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
+        if(dp_packet2 == NULL){
+            fprintf(stderr, "ERROR: failed to malloc() 1\n");
+            close(sockfd);
+        }
         if (read(connd, dp_packet2, dp_packet2_size) == -1) {
             fprintf(stderr, "ERROR: failed to read | dp_packet2\n");
             close(sockfd);
@@ -264,8 +269,13 @@ receive_packets(ubpf_jit_fn fn)
         printf("dp_packet2: received.\n");
 
         // packet
+        printf("dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
         packet = malloc(dp_packet2->allocated_);
-        dp_packet2->base_ = &packet;
+        if(packet == NULL){
+            fprintf(stderr, "ERROR: failed to malloc() 2\n");
+            close(sockfd);
+        }
+        dp_packet2->base_ = packet;
         if (read(connd, dp_packet2->base_, dp_packet2->allocated_) == -1) {
             fprintf(stderr, "ERROR: failed to read | packet\n");
             close(sockfd);
