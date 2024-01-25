@@ -186,6 +186,31 @@ struct dp_packet {
 //    };
 };
 
+struct dp_packet_p4 {
+    void *base_;                /* First byte of allocated space. */
+    uint16_t allocated_;        /* Number of bytes allocated. */
+    uint16_t data_ofs;          /* First byte actually in use. */
+    uint32_t size_;             /* Number of bytes in use. */
+    uint32_t ol_flags;          /* Offloading flags. */
+    uint32_t rss_hash;          /* Packet hash. */
+    uint32_t flow_mark;         /* Packet flow mark. */
+    enum dp_packet_source source;  /* Source of memory allocated as 'base'. */
+
+    /* All the following elements of this struct are copied in a single call
+     * of memcpy in dp_packet_clone_with_headroom. */
+    uint16_t l2_pad_size;          /* Detected l2 padding size.
+                                    * Padding is non-pullable. */
+    uint16_t l2_5_ofs;             /* MPLS label stack offset, or UINT16_MAX */
+    uint16_t l3_ofs;               /* Network-level header offset,
+                                    * or UINT16_MAX. */
+    uint16_t l4_ofs;               /* Transport-level header offset,
+                                      or UINT16_MAX. */
+    uint32_t cutlen;               /* length in bytes to cut from the end. */
+    ovs_be32 packet_type;          /* Packet type as defined in OpenFlow */
+    uint16_t csum_start;           /* Position to start checksumming from. */
+    uint16_t csum_offset;          /* Offset to place checksum. */
+};
+
 #if HAVE_AF_XDP
 struct dp_packet_afxdp {
     struct umem_pool *mpool;

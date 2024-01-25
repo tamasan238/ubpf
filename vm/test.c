@@ -108,7 +108,6 @@ static int _map_entries_count = 0;
 static int _map_entries_capacity = 0;
 static uint8_t* _global_data = NULL;
 static uint64_t _global_data_size = 0;
-static char buff[UINT16_MAX];
 
 uint64_t
 do_data_relocation(
@@ -212,7 +211,11 @@ receive_packets(ubpf_jit_fn fn)
     struct sockaddr_in servAddr;
     struct sockaddr_in clientAddr;
     socklen_t          size = sizeof(clientAddr);
-    size_t             buff_size;
+
+    struct dp_packet_p4 *dp_packet2;
+    uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
+    void               *packet;
+
     uint64_t           fn_ret;
     char               result[2];
 
@@ -252,34 +255,31 @@ receive_packets(ubpf_jit_fn fn)
     printf("Client connected successfully\n");
 
     while (1) {
-        // size of packet
-        buff_size = 0;
-        if (read(connd, &buff_size, sizeof(int)) == -1) {
-            fprintf(stderr, "ERROR: failed to read | size of packet\n");
+        // dp_packet2
+        dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
+        if (read(connd, dp_packet2, dp_packet2_size) == -1) {
+            fprintf(stderr, "ERROR: failed to read | dp_packet2\n");
             close(sockfd);
         }
-        if (buff_size == *(int *)"shut") {
-            printf("Shutdown command issued!\n");
-            break;
-        }
-        printf("Client: size of packet: %ld\n",  buff_size);
+        printf("dp_packet2: received.\n");
 
         // packet
-        memset(buff, 0, sizeof(buff));
-        if (read(connd, buff, buff_size) == -1) {
+        packet = malloc(dp_packet2->allocated_);
+        dp_packet2->base_ = &packet;
+        if (read(connd, dp_packet2->base_, dp_packet2->allocated_) == -1) {
             fprintf(stderr, "ERROR: failed to read | packet\n");
             close(sockfd);
         }
-        printf("Client: packet: \n");
-        for (int j = 0; j < buff_size; j++)
-            printf("%02X", buff[j]);
-        puts("");
+        printf("packet: received.\n");
 
-        //fn_ret = fn(&(buff[0]), buff_size);
         struct standard_metadata std_meta;
-	std_meta.packet_length = buff_size;
-	fn_ret = fn(&(buff[0]), &std_meta);
-        printf("0x%" PRIx64 "\n", fn_ret);
+        std_meta.packet_length = dp_packet2->size_;
+
+        fn_ret = fn(dp_packet2, &std_meta);
+
+        printf("Argument: %p\n",packet);
+        printf("Return:   0x%" PRIx64 "\n", fn_ret);
+        puts("");
 
         result[0]='0'+fn_ret;
         result[1]='\0';
@@ -288,6 +288,9 @@ receive_packets(ubpf_jit_fn fn)
             fprintf(stderr, "ERROR: failed to write\n");
             goto servsocket_cleanup;
         }
+
+        free(dp_packet2);
+        free(packet);
     }
     printf("Shutdown complete\n");
     close(connd);
@@ -665,6 +668,7 @@ ubpf_hash(void *item, uint64_t size)
 
 void *
 ubpf_adjust_head(void* ctx, int offset) {
+    printf("ubpf_adjust_head is called.");
     struct dp_packet *packet = (struct dp_packet *) ctx;
 
     void *pkt = NULL;
@@ -713,6 +717,7 @@ getResult()
     int fd, ret;
     char *map_region;
 
+    printf("getResult is called.");
     fd = open("/dev/uio0", O_RDONLY);
     if (fd < 0) {
         perror("open");
