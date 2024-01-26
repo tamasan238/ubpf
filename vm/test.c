@@ -212,9 +212,9 @@ receive_packets(ubpf_jit_fn fn)
     struct sockaddr_in clientAddr;
     socklen_t          size = sizeof(clientAddr);
 
-    struct dp_packet_p4 *dp_packet2;
+    struct dp_packet_p4 *dp_packet2 = NULL;
     uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
-    char               *packet;
+    char               *packet = NULL;
 
     uint64_t           fn_ret;
     char               result[2];
@@ -256,56 +256,77 @@ receive_packets(ubpf_jit_fn fn)
 
     while (1) {
         // dp_packet2
-        printf("dp_packet2_size: %ld\n", dp_packet2_size);
+        // printf("dp_packet2_size: %ld\n", dp_packet2_size);
         dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
         if(dp_packet2 == NULL){
             fprintf(stderr, "ERROR: failed to malloc() 1\n");
-            close(sockfd);
+            goto servsocket_cleanup;
         }
-        if (read(connd, dp_packet2, dp_packet2_size) == -1) {
+        if (read(connd, dp_packet2, dp_packet2_size) != dp_packet2_size) {
             fprintf(stderr, "ERROR: failed to read | dp_packet2\n");
-            close(sockfd);
+            goto servsocket_cleanup;
+        }
+        if (strncmp((char *)dp_packet2, "shutdown", sizeof("shutdown")) == 0){
+            printf("received shutdown cmd\n");
+            break;
         }
         printf("dp_packet2: received.\n");
 
         // packet
         printf("dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
-        packet = malloc(dp_packet2->allocated_);
-        if(packet == NULL){
-            fprintf(stderr, "ERROR: failed to malloc() 2\n");
-            close(sockfd);
+
+        if(dp_packet2->allocated_ == 0){
+            result[0]='3';
+            result[1]='\0';
+            // HERE!!!!!!!!!!!
+            printf("allocated_ is 0\n\n");
+        }else{
+            packet = malloc(dp_packet2->allocated_);
+            if(packet == NULL){
+                fprintf(stderr, "ERROR: failed to malloc() 2\n");
+                goto servsocket_cleanup;
+            }
+            dp_packet2->base_ = packet;
+            if (read(connd, dp_packet2->base_, dp_packet2->allocated_) != dp_packet2->allocated_) {
+                fprintf(stderr, "ERROR: failed to read | packet\n");
+                goto servsocket_cleanup;
+            }
+            printf("packet: received.\n");
+
+            struct standard_metadata std_meta;
+            std_meta.packet_length = dp_packet2->allocated_;
+
+            fn_ret = fn(dp_packet2, &std_meta);
+            printf("fn() is called.\n");
+
+            printf("Return: 0x%" PRIx64 ", dp_packet2->allocated_: %d\n\n", fn_ret, dp_packet2->allocated_);
+
+            result[0]='0'+fn_ret;
+            result[1]='\0';
         }
-        dp_packet2->base_ = packet;
-        if (read(connd, dp_packet2->base_, dp_packet2->allocated_) == -1) {
-            fprintf(stderr, "ERROR: failed to read | packet\n");
-            close(sockfd);
-        }
-        printf("packet: received.\n");
-
-        struct standard_metadata std_meta;
-        std_meta.packet_length = dp_packet2->size_;
-
-        fn_ret = fn(dp_packet2, &std_meta);
-
-        printf("Argument: %p\n",packet);
-        printf("Return:   0x%" PRIx64 "\n", fn_ret);
-        puts("");
-
-        result[0]='0'+fn_ret;
-        result[1]='\0';
 
         if ((ret = write(connd, &result, sizeof(result))) != 2) {
-            fprintf(stderr, "ERROR: failed to write\n");
+            fprintf(stderr, "ERROR: failed to write | result\n");
             goto servsocket_cleanup;
         }
 
-        free(dp_packet2);
-        free(packet);
+        if(dp_packet2 != NULL){
+            free(dp_packet2);
+            dp_packet2 = NULL;
+        }
+        if(packet != NULL){
+            free(packet);
+            packet = NULL;
+        }
     }
     printf("Shutdown complete\n");
     close(connd);
 servsocket_cleanup:
     close(sockfd);
+    if(dp_packet2 != NULL)
+        free(dp_packet2);
+    if(packet != NULL)
+        free(packet);
 end:
     return ret;
 }
@@ -571,21 +592,23 @@ bpf_map_update_elem_impl(struct bpf_map* map, const void* key, const void* value
 }
 
 static int
-bpf_map_delete_elem_impl(struct bpf_map* map, const void* key)
+// bpf_map_delete_elem_impl(struct bpf_map* map, const void* key)
+bpf_map_delete_elem_impl()
 {
-    map_entry_t* map_entry = (map_entry_t*)map;
-    if (map_entry->map_definition.type == BPF_MAP_TYPE_ARRAY) {
-        uint32_t index = *(uint32_t*)key;
-        if (index >= map_entry->map_definition.max_entries) {
-            return -1;
-        }
-        memset(
-            map_entry->array + index * map_entry->map_definition.value_size, 0, map_entry->map_definition.value_size);
-        return 0;
-    } else {
-        fprintf(stderr, "bpf_map_delete_elem not implemented for this map type.\n");
-        exit(1);
-    }
+    // map_entry_t* map_entry = (map_entry_t*)map;
+    // if (map_entry->map_definition.type == BPF_MAP_TYPE_ARRAY) {
+    //     uint32_t index = *(uint32_t*)key;
+    //     if (index >= map_entry->map_definition.max_entries) {
+    //         return -1;
+    //     }
+    //     memset(
+    //         map_entry->array + index * map_entry->map_definition.value_size, 0, map_entry->map_definition.value_size);
+    //     return 0;
+    // } else {
+    //     fprintf(stderr, "bpf_map_delete_elem not implemented for this map type.\n");
+    //     exit(1);
+    // }
+    return 0;
 }
 
 void *
@@ -727,7 +750,7 @@ getResult()
     int fd, ret;
     char *map_region;
 
-    printf("getResult is called.");
+    printf("getResult is called.\n");
     fd = open("/dev/uio0", O_RDONLY);
     if (fd < 0) {
         perror("open");
@@ -745,8 +768,10 @@ getResult()
 
     if (strcmp(map_region, "drop") == 0) {
         ret = 0;
+        printf("shm: drop\n");
     } else if (strcmp(map_region, "pass") == 0) {
         ret = 1;
+        printf("shm: pass\n");
     } else {
         ret = -1;
     }
