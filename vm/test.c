@@ -202,6 +202,27 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
     return false;
 }
 
+ssize_t
+read_exact(int s, void *buf, size_t size)
+{
+    char *ptr = buf;
+    ssize_t rcvd = 0, ret;
+
+    while (rcvd < size) {
+        ret = read(s, &ptr[rcvd], size - rcvd);
+        if (ret < 0) {
+          perror("read");
+          return -1;
+        }
+        else if (ret == 0)
+          break;
+
+        rcvd += ret;
+    }
+
+    return rcvd;
+}
+
 int
 receive_packets(ubpf_jit_fn fn)
 {
@@ -262,18 +283,18 @@ receive_packets(ubpf_jit_fn fn)
             fprintf(stderr, "ERROR: failed to malloc() 1\n");
             goto servsocket_cleanup;
         }
-        if (read(connd, dp_packet2, dp_packet2_size) != dp_packet2_size) {
+        if (read_exact(connd, dp_packet2, dp_packet2_size) != dp_packet2_size) {
+            if (strncmp((char *)dp_packet2, "shutdown", sizeof("shutdown")) == 0){
+                printf("received shutdown cmd\n");
+                break;
+            }
             fprintf(stderr, "ERROR: failed to read | dp_packet2\n");
             goto servsocket_cleanup;
         }
-        if (strncmp((char *)dp_packet2, "shutdown", sizeof("shutdown")) == 0){
-            printf("received shutdown cmd\n");
-            break;
-        }
-        printf("dp_packet2: received.\n");
+        // printf("dp_packet2: received.\n");
 
         // packet
-        printf("dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
+        // printf("dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
 
         if(dp_packet2->allocated_ == 0){
             result[0]='3';
@@ -287,19 +308,19 @@ receive_packets(ubpf_jit_fn fn)
                 goto servsocket_cleanup;
             }
             dp_packet2->base_ = packet;
-            if (read(connd, dp_packet2->base_, dp_packet2->allocated_) != dp_packet2->allocated_) {
+            if (read_exact(connd, dp_packet2->base_, dp_packet2->allocated_) != dp_packet2->allocated_) {
                 fprintf(stderr, "ERROR: failed to read | packet\n");
                 goto servsocket_cleanup;
             }
-            printf("packet: received.\n");
+            // printf("packet: received.\n");
 
             struct standard_metadata std_meta;
             std_meta.packet_length = dp_packet2->allocated_;
 
             fn_ret = fn(dp_packet2, &std_meta);
-            printf("fn() is called.\n");
+            // printf("fn() is called.\n");
 
-            printf("Return: 0x%" PRIx64 ", dp_packet2->allocated_: %d\n\n", fn_ret, dp_packet2->allocated_);
+            // printf("Return: 0x%" PRIx64 ", dp_packet2->allocated_: %d\n\n", fn_ret, dp_packet2->allocated_);
 
             result[0]='0'+fn_ret;
             result[1]='\0';
@@ -750,7 +771,7 @@ getResult()
     int fd, ret;
     char *map_region;
 
-    printf("getResult is called.\n");
+    // printf("getResult is called.\n");
     fd = open("/dev/uio0", O_RDONLY);
     if (fd < 0) {
         perror("open");
@@ -768,10 +789,10 @@ getResult()
 
     if (strcmp(map_region, "drop") == 0) {
         ret = 0;
-        printf("shm: drop\n");
+        // printf("shm: drop\n");
     } else if (strcmp(map_region, "pass") == 0) {
         ret = 1;
-        printf("shm: pass\n");
+        // printf("shm: pass\n");
     } else {
         ret = -1;
     }
