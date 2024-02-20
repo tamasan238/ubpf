@@ -318,6 +318,7 @@ receive_packets(ubpf_jit_fn fn)
             std_meta.packet_length = dp_packet2->allocated_;
 
             fn_ret = fn(dp_packet2, &std_meta);
+            //fn_ret = 1;
             // printf("fn() is called.\n");
 
             // printf("Return: 0x%" PRIx64 ", dp_packet2->allocated_: %d\n\n", fn_ret, dp_packet2->allocated_);
