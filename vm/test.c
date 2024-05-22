@@ -18,6 +18,9 @@
  * limitations under the License.
  */
 
+// #define USE_TCP
+#define USE_SHM
+
 #include <ubpf_config.h>
 
 #define _GNU_SOURCE
@@ -49,7 +52,17 @@
 #endif
 #endif
 
+// #include <syslog.h>
+// #include <sys/time.h>
 #define PORT 11111
+#define WAIT_TIME 100
+#define SHM_NAME "/dev/shm/ivshmem"
+#define SHM_SIZE 1048576 // 1024 * 1024
+#define SHM_FLAG_SPACE 1024
+#define SHM_VM_INFO 0
+#define SHM_DP_PACKET2 131072 // 128 * 1024
+#define SHM_PACKET 262144 // 256 * 1024
+#define SHM_RESULT 524288 // 512 * 1024
 
 void
 ubpf_set_register_offset(int x);
@@ -226,12 +239,11 @@ read_exact(int s, void *buf, size_t size)
 int
 receive_packets(ubpf_jit_fn fn)
 {
+    // struct timeval start, end;
+    // long seconds, useconds;
+    // double elapsed;
+
     int                ret=0;
-    int                sockfd;
-    int                connd;
-    struct sockaddr_in servAddr;
-    struct sockaddr_in clientAddr;
-    socklen_t          size = sizeof(clientAddr);
 
     struct dp_packet_p4 *dp_packet2 = NULL;
     uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
@@ -239,6 +251,14 @@ receive_packets(ubpf_jit_fn fn)
 
     uint64_t           fn_ret;
     char               result[2];
+
+    #ifdef USE_TCP
+
+    int                sockfd;
+    int                connd;
+    struct sockaddr_in servAddr;
+    struct sockaddr_in clientAddr;
+    socklen_t          size = sizeof(clientAddr);
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         fprintf(stderr, "ERROR: failed to create the socket\n");
@@ -317,7 +337,18 @@ receive_packets(ubpf_jit_fn fn)
             struct standard_metadata std_meta;
             std_meta.packet_length = dp_packet2->allocated_;
 
+            // gettimeofday(&start, NULL);
             fn_ret = fn(dp_packet2, &std_meta);
+            // gettimeofday(&end, NULL);
+
+            // seconds = end.tv_sec - start.tv_sec;
+            // useconds = end.tv_usec - start.tv_usec;
+            // elapsed = seconds + useconds/1.0e6;
+            
+            // openlog("KSL-IWAI", LOG_CONS | LOG_PID, LOG_USER);
+            // syslog(LOG_WARNING, "Elapsed: %f[sec]\n", elapsed);
+            // closelog();
+
             //fn_ret = 1;
             // printf("fn() is called.\n");
 
@@ -351,6 +382,96 @@ servsocket_cleanup:
         free(packet);
 end:
     return ret;
+
+    #endif
+
+    #ifdef USE_SHM
+
+    // int fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    int fd = open("/dev/uio0", O_CREAT | O_RDWR, 0666);
+
+    if (fd == -1) {
+        perror("shm_open");
+        exit(EXIT_FAILURE);
+    }
+
+    if (ftruncate(fd, SHM_SIZE) == -1) {
+        perror("ftruncate");
+        exit(EXIT_FAILURE);
+    }
+
+    void *shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (shm_ptr == MAP_FAILED) {
+        perror("mmap");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("SHM opened.\n");
+
+    while(1){
+        // TODO: Implement shutdown logic
+
+        // dp_packet2
+        dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
+        if(dp_packet2 == NULL){
+            fprintf(stderr, "ERROR: failed to malloc() 1\n");
+            exit(EXIT_FAILURE);
+        }
+
+        memset(dp_packet2, 0, dp_packet2_size);
+
+        while (*((char *)shm_ptr + SHM_DP_PACKET2) != 1) {
+        	usleep(WAIT_TIME);
+    	}
+        memcpy(dp_packet2, shm_ptr+SHM_DP_PACKET2+SHM_FLAG_SPACE, dp_packet2_size);
+        *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
+
+        // packet
+        if(dp_packet2->allocated_ == 0){
+            result[0]='3';
+            result[1]='\0';
+            printf("allocated_ is 0\n\n");
+        }else{
+            packet = malloc(dp_packet2->allocated_);
+            if(packet == NULL){
+                fprintf(stderr, "ERROR: failed to malloc() 2\n");
+                free(dp_packet2);
+                exit(EXIT_FAILURE);
+            }
+            dp_packet2->base_ = packet;
+
+            memset(dp_packet2->base_, 0, dp_packet2->allocated_);
+            while (*((char *)shm_ptr + SHM_PACKET) != 1) {
+            	usleep(WAIT_TIME);
+        	}
+            memcpy(dp_packet2->base_, shm_ptr+SHM_PACKET+SHM_FLAG_SPACE, dp_packet2->allocated_);
+            *((char *)shm_ptr + SHM_PACKET) = 0;
+
+            struct standard_metadata std_meta = { .packet_length = dp_packet2->allocated_ };
+
+            fn_ret = fn(dp_packet2, &std_meta);
+
+            result[0]='0'+fn_ret;
+            result[1]='\0';
+            
+            free(packet);
+        }
+
+        while (*((char *)shm_ptr + SHM_RESULT) != 0) {
+        	usleep(WAIT_TIME);
+    	}
+        memcpy(shm_ptr+SHM_RESULT+SHM_FLAG_SPACE, result, sizeof(result));
+        *((char *)shm_ptr + SHM_RESULT) = 1;
+
+        free(dp_packet2);
+    }
+
+    munmap(shm_ptr, SHM_SIZE);
+    close(fd);
+
+    return ret;
+
+    #endif
 }
 
 int
@@ -769,6 +890,10 @@ ubpf_truncate_packet()
 int
 getResult()
 {
+    // TODO: Remove this
+    return 1;
+    // TODO: Change Read/Write Space
+
     int fd, ret;
     char *map_region;
 
