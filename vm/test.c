@@ -413,16 +413,22 @@ end:
 
         // dp_packet2
         dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
+        printf("a\n");
         if(dp_packet2 == NULL){
             fprintf(stderr, "ERROR: failed to malloc() 1\n");
             exit(EXIT_FAILURE);
         }
+        printf("b\n");
 
         memset(dp_packet2, 0, dp_packet2_size);
 
+        printf("c\n");
+
         while (*((char *)shm_ptr + SHM_DP_PACKET2) != 1) {
+            printf("d: %d\n", *((char *)shm_ptr + SHM_DP_PACKET2));
         	usleep(WAIT_TIME);
     	}
+        printf("process started.\n");
         memcpy(dp_packet2, shm_ptr+SHM_DP_PACKET2+SHM_FLAG_SPACE, dp_packet2_size);
         *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
 
