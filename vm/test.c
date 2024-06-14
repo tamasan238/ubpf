@@ -395,10 +395,12 @@ end:
         exit(EXIT_FAILURE);
     }
 
-    if (ftruncate(fd, SHM_SIZE) == -1) {
-        perror("ftruncate");
-        exit(EXIT_FAILURE);
-    }
+    printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
+
+    // if (ftruncate(fd, SHM_SIZE) == -1) {
+    //     perror("ftruncate");
+    //     exit(EXIT_FAILURE);
+    // }
 
     void *shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (shm_ptr == MAP_FAILED) {
@@ -413,16 +415,12 @@ end:
 
         // dp_packet2
         dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
-        printf("a\n");
         if(dp_packet2 == NULL){
             fprintf(stderr, "ERROR: failed to malloc() 1\n");
             exit(EXIT_FAILURE);
         }
-        printf("b\n");
 
         memset(dp_packet2, 0, dp_packet2_size);
-
-        printf("c\n");
 
         while (*((char *)shm_ptr + SHM_DP_PACKET2) != 1) {
             printf("d: %d\n", *((char *)shm_ptr + SHM_DP_PACKET2));
