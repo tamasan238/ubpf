@@ -56,13 +56,13 @@
 // #include <sys/time.h>
 #define PORT 11111
 #define WAIT_TIME 100
-#define SHM_NAME "/dev/shm/ivshmem"
-#define SHM_SIZE 1048576 // 1024 * 1024
+#define SHM_NAME "/dev/uio0"
+#define SHM_SIZE 524288 // 512 * 1024
 #define SHM_FLAG_SPACE 1024
 #define SHM_VM_INFO 0
 #define SHM_DP_PACKET2 131072 // 128 * 1024
 #define SHM_PACKET 262144 // 256 * 1024
-#define SHM_RESULT 524288 // 512 * 1024
+#define SHM_RESULT 393216 // 384 * 1024
 
 void
 ubpf_set_register_offset(int x);
@@ -387,8 +387,7 @@ end:
 
     #ifdef USE_SHM
 
-    // int fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    int fd = open("/dev/uio0", O_CREAT | O_RDWR, 0666);
+    int fd = shm_open(SHM_NAME, O_RDWR, 0666);
 
     if (fd == -1) {
         perror("shm_open");
@@ -402,7 +401,7 @@ end:
     //     exit(EXIT_FAILURE);
     // }
 
-    void *shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void *shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SHM_SIZE);
     if (shm_ptr == MAP_FAILED) {
         perror("mmap");
         exit(EXIT_FAILURE);
