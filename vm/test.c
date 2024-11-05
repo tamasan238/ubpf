@@ -387,21 +387,16 @@ end:
 
     #ifdef USE_SHM
 
-    int fd = shm_open(SHM_NAME, O_RDWR, 0666);
+    int fd = open(SHM_NAME, O_RDWR);
 
-    if (fd == -1) {
+    if (fd < 0) {
         perror("shm_open");
         exit(EXIT_FAILURE);
     }
 
     printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
 
-    // if (ftruncate(fd, SHM_SIZE) == -1) {
-    //     perror("ftruncate");
-    //     exit(EXIT_FAILURE);
-    // }
-
-    void *shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, SHM_SIZE);
+    void *shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
     if (shm_ptr == MAP_FAILED) {
         perror("mmap");
         exit(EXIT_FAILURE);
@@ -460,6 +455,7 @@ end:
             free(packet);
         }
 
+        // result
         while (*((char *)shm_ptr + SHM_RESULT) != 0) {
         	usleep(WAIT_TIME);
     	}
