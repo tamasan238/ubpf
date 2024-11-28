@@ -55,7 +55,7 @@
 // #include <syslog.h>
 // #include <sys/time.h>
 #define PORT 11111
-#define WAIT_TIME 100
+#define WAIT_TIME 1
 #define SHM_NAME "/dev/uio0"
 #define SHM_SIZE 524288 // 512 * 1024
 #define SHM_FLAG_SPACE 1024
@@ -403,6 +403,22 @@ end:
     }
 
     printf("SHM opened.\n");
+    printf("mapped to %p\n", shm_ptr);
+
+    printf("initial state: \n");
+    printf("%d, %d, %d\n", 
+        *((char *)shm_ptr + SHM_DP_PACKET2),
+        *((char *)shm_ptr + SHM_PACKET),
+        *((char *)shm_ptr + SHM_RESULT));
+    
+    // while(1){// for debug
+    //     printf("reading... \n");// for debug
+    //     printf("%d, %d, %d\n", 
+    //         *((char *)shm_ptr + SHM_DP_PACKET2),
+    //         *((char *)shm_ptr + SHM_PACKET),
+    //         *((char *)shm_ptr + SHM_RESULT));// for debug
+    //     usleep(WAIT_TIME*1000);// for debug
+    // }
 
     while(1){
         // TODO: Implement shutdown logic
@@ -417,12 +433,11 @@ end:
         memset(dp_packet2, 0, dp_packet2_size);
 
         while (*((char *)shm_ptr + SHM_DP_PACKET2) != 1) {
-            printf("d: %d\n", *((char *)shm_ptr + SHM_DP_PACKET2));
         	usleep(WAIT_TIME);
     	}
-        printf("process started.\n");
+        // printf("process started.\n");
         memcpy(dp_packet2, shm_ptr+SHM_DP_PACKET2+SHM_FLAG_SPACE, dp_packet2_size);
-        *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
+        // *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
 
         // packet
         if(dp_packet2->allocated_ == 0){
@@ -439,11 +454,12 @@ end:
             dp_packet2->base_ = packet;
 
             memset(dp_packet2->base_, 0, dp_packet2->allocated_);
-            while (*((char *)shm_ptr + SHM_PACKET) != 1) {
-            	usleep(WAIT_TIME);
-        	}
+            // while (*((char *)shm_ptr + SHM_PACKET) != 1) {
+            // 	usleep(WAIT_TIME);
+        	// }
             memcpy(dp_packet2->base_, shm_ptr+SHM_PACKET+SHM_FLAG_SPACE, dp_packet2->allocated_);
-            *((char *)shm_ptr + SHM_PACKET) = 0;
+            // *((char *)shm_ptr + SHM_PACKET) = 0;
+            *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
 
             struct standard_metadata std_meta = { .packet_length = dp_packet2->allocated_ };
 
