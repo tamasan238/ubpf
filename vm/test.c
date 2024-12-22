@@ -413,7 +413,9 @@ end:
         *((char *)shm_ptr + SHM_PACKET),
         *((char *)shm_ptr + SHM_RESULT));
     
+    printf("たぶんここまで大丈夫\n");
     memcpy(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "pass\0", sizeof("pass\0"));
+    printf("たぶんここまで\n");
     
     // while(1){// for debug
     //     printf("reading... \n");// for debug
