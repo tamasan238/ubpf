@@ -413,9 +413,7 @@ end:
         *((char *)shm_ptr + SHM_PACKET),
         *((char *)shm_ptr + SHM_RESULT));
     
-    printf("たぶんここまで大丈夫\n");
     memcpy(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "pass\0", sizeof("pass\0"));
-    printf("たぶんここまで\n");
     
     // while(1){// for debug
     //     printf("reading... \n");// for debug
@@ -913,7 +911,9 @@ getResult()
 {
     int ret;
     char buffer_vm_info[134217728]; // 128*1024*1024
+    printf("@@@ (a)\n");
     memcpy(&buffer_vm_info, shm_ptr+SHM_VM_INFO, sizeof(buffer_vm_info));
+    printf("@@@ (a)\n");
 
     if (strcmp(buffer_vm_info+SHM_FLAG_SPACE, "drop") == 0) {
         ret = 0;
