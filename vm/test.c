@@ -64,6 +64,8 @@
 #define SHM_PACKET 262144 // 256 * 1024
 #define SHM_RESULT 393216 // 384 * 1024
 
+void *shm_ptr;
+
 void
 ubpf_set_register_offset(int x);
 static void*
@@ -396,7 +398,7 @@ end:
 
     printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
 
-    void *shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
+    shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
     if (shm_ptr == MAP_FAILED) {
         perror("mmap");
         exit(EXIT_FAILURE);
@@ -410,6 +412,8 @@ end:
         *((char *)shm_ptr + SHM_DP_PACKET2),
         *((char *)shm_ptr + SHM_PACKET),
         *((char *)shm_ptr + SHM_RESULT));
+    
+    memcpy(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "pass\0", sizeof("pass\0"));
     
     // while(1){// for debug
     //     printf("reading... \n");// for debug
@@ -905,41 +909,20 @@ ubpf_truncate_packet()
 int
 getResult()
 {
-    // TODO: Remove this
-    return 1;
-    // TODO: Change Read/Write Space
+    int ret;
+    char buffer_vm_info[134217728]; // 128*1024*1024
+    memcpy(&buffer_vm_info, shm_ptr+SHM_VM_INFO, sizeof(buffer_vm_info));
 
-    int fd, ret;
-    char *map_region;
-
-    // printf("getResult is called.\n");
-    fd = open("/dev/uio0", O_RDONLY);
-    if (fd < 0) {
-        perror("open");
-        exit(1);
-    }
-
-    map_region = mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd, 4096);
-    if (map_region < 0) {
-        perror("mmap");
-        exit(1);
-    }
-
-//    printf("mapped to %p\n", map_region);
-//    printf("shm: %s\n", map_region);
-
-    if (strcmp(map_region, "drop") == 0) {
+    if (strcmp(buffer_vm_info+SHM_FLAG_SPACE, "drop") == 0) {
         ret = 0;
         // printf("shm: drop\n");
-    } else if (strcmp(map_region, "pass") == 0) {
+    } else if (strcmp(buffer_vm_info+SHM_FLAG_SPACE, "pass") == 0) {
         ret = 1;
         // printf("shm: pass\n");
     } else {
         ret = -1;
     }
 
-    munmap(map_region, 4096);
-    close(fd);
     return ret;
 }
 
