@@ -912,6 +912,10 @@ getResult()
     int ret;
     char buffer_vm_info[134217728]; // 128*1024*1024
     printf("@@@ (a)\n");
+    // User VM領域を読むようにコードを変えたら，OVS起動後にSegmentation Faultを吐くようになった．
+    // ここかなと思ったけど，上の(a)が出力される前に落ちる．
+    // 初期化してるところでもなかった．Segmentation Faultの発生位置を突き止めて修正する．
+    // その後，改めてmeasureスクリプトを実行してP4 Shield(shm ver.)のスループットとする．
     memcpy(&buffer_vm_info, shm_ptr+SHM_VM_INFO, sizeof(buffer_vm_info));
     printf("@@@ (a)\n");
 
