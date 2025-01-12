@@ -932,6 +932,7 @@ ubpf_truncate_packet()
 int
 getResult()
 {
+    printf("@@@ getResult (-)\n");
     int ret;
     char buffer_vm_info[134217728]; // 128*1024*1024
     printf("@@@ getResult (a)\n");
