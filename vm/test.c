@@ -412,8 +412,12 @@ end:
         *((char *)shm_ptr + SHM_DP_PACKET2),
         *((char *)shm_ptr + SHM_PACKET),
         *((char *)shm_ptr + SHM_RESULT));
+
+    printf("@@@ receive_packets (a)\n");
     
     memcpy(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "pass\0", sizeof("pass\0"));
+
+    printf("@@@ receive_packets (b)\n");
     
     // while(1){// for debug
     //     printf("reading... \n");// for debug
@@ -427,12 +431,16 @@ end:
     while(1){
         // TODO: Implement shutdown logic
 
+        printf("@@@ receive_packets (c)\n");
+
         // dp_packet2
         dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
         if(dp_packet2 == NULL){
             fprintf(stderr, "ERROR: failed to malloc() 1\n");
             exit(EXIT_FAILURE);
         }
+
+        printf("@@@ receive_packets (d)\n");
 
         memset(dp_packet2, 0, dp_packet2_size);
 
@@ -443,12 +451,16 @@ end:
         memcpy(dp_packet2, shm_ptr+SHM_DP_PACKET2+SHM_FLAG_SPACE, dp_packet2_size);
         // *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
 
+        printf("@@@ receive_packets (e)\n");
+
         // packet
         if(dp_packet2->allocated_ == 0){
+            printf("@@@ receive_packets (f)\n");
             result[0]='3';
             result[1]='\0';
             printf("allocated_ is 0\n\n");
         }else{
+            printf("@@@ receive_packets (g)\n");
             packet = malloc(dp_packet2->allocated_);
             if(packet == NULL){
                 fprintf(stderr, "ERROR: failed to malloc() 2\n");
@@ -456,6 +468,7 @@ end:
                 exit(EXIT_FAILURE);
             }
             dp_packet2->base_ = packet;
+            printf("@@@ receive_packets (h)\n");
 
             memset(dp_packet2->base_, 0, dp_packet2->allocated_);
             // while (*((char *)shm_ptr + SHM_PACKET) != 1) {
@@ -465,14 +478,20 @@ end:
             // *((char *)shm_ptr + SHM_PACKET) = 0;
             *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
 
+            printf("@@@ receive_packets (i)\n");
+
             struct standard_metadata std_meta = { .packet_length = dp_packet2->allocated_ };
 
             fn_ret = fn(dp_packet2, &std_meta);
+
+            printf("@@@ receive_packets (j)\n");
 
             result[0]='0'+fn_ret;
             result[1]='\0';
             
             free(packet);
+
+            printf("@@@ receive_packets (k)\n");
         }
 
         // result
@@ -911,13 +930,13 @@ getResult()
 {
     int ret;
     char buffer_vm_info[134217728]; // 128*1024*1024
-    printf("@@@ (a)\n");
+    printf("@@@ getResult (a)\n");
     // User VM領域を読むようにコードを変えたら，OVS起動後にSegmentation Faultを吐くようになった．
     // ここかなと思ったけど，上の(a)が出力される前に落ちる．
     // 初期化してるところでもなかった．Segmentation Faultの発生位置を突き止めて修正する．
     // その後，改めてmeasureスクリプトを実行してP4 Shield(shm ver.)のスループットとする．
     memcpy(&buffer_vm_info, shm_ptr+SHM_VM_INFO, sizeof(buffer_vm_info));
-    printf("@@@ (a)\n");
+    printf("@@@ getResult (b)\n");
 
     if (strcmp(buffer_vm_info+SHM_FLAG_SPACE, "drop") == 0) {
         ret = 0;
