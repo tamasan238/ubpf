@@ -480,7 +480,11 @@ end:
 
             printf("@@@ receive_packets (i)\n");
 
+            printf("@@@ dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
+
             struct standard_metadata std_meta = { .packet_length = dp_packet2->allocated_ };
+
+            printf("@@@ receive_packets (i-2)\n");
 
             fn_ret = fn(dp_packet2, &std_meta);
 
