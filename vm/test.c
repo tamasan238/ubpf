@@ -59,7 +59,8 @@
 #define SHM_NAME "/dev/uio0"
 #define SHM_SIZE 524288 // 512 * 1024
 #define SHM_FLAG_SPACE 1024
-#define SHM_VM_INFO 0
+// #define SHM_VM_INFO 0
+#define SHM_VM_INFO 65536 // 64 * 1024 for debug
 #define SHM_DP_PACKET2 131072 // 128 * 1024
 #define SHM_PACKET 262144 // 256 * 1024
 #define SHM_RESULT 393216 // 384 * 1024
