@@ -935,38 +935,15 @@ getResult()
 {
     printf("@@@ getResult (-)\n");
     int ret;
-    char buffer_vm_info[134217728]; // 128*1024*1024
+    // char buffer_vm_info[134217728]; // 128*1024*1024
     printf("@@@ getResult (a)\n");
-    memcpy(&buffer_vm_info, shm_ptr+SHM_VM_INFO, sizeof(buffer_vm_info));
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
-    printf("@@@ getResult (b)\n");
+    // memcpy(&buffer_vm_info, shm_ptr+SHM_VM_INFO, sizeof(buffer_vm_info));
     printf("@@@ getResult (b)\n");
 
-    if (strcmp(buffer_vm_info+SHM_FLAG_SPACE, "drop") == 0) {
+    if (strcmp(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "drop") == 0) {
         ret = 0;
         // printf("shm: drop\n");
-    } else if (strcmp(buffer_vm_info+SHM_FLAG_SPACE, "pass") == 0) {
+    } else if (strcmp(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "pass") == 0) {
         ret = 1;
         // printf("shm: pass\n");
     } else {
