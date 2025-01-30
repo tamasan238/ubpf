@@ -59,8 +59,8 @@
 #define SHM_NAME "/dev/uio0"
 #define SHM_SIZE 524288 // 512 * 1024
 #define SHM_FLAG_SPACE 1024
-// #define SHM_VM_INFO 0
-#define SHM_VM_INFO 65536 // 64 * 1024 for debug
+#define SHM_VM_INFO 0
+// #define SHM_VM_INFO 65536 // 64 * 1024 for debug
 #define SHM_DP_PACKET2 131072 // 128 * 1024
 #define SHM_PACKET 262144 // 256 * 1024
 #define SHM_RESULT 393216 // 384 * 1024
@@ -937,11 +937,30 @@ getResult()
     int ret;
     char buffer_vm_info[134217728]; // 128*1024*1024
     printf("@@@ getResult (a)\n");
-    // User VM領域を読むようにコードを変えたら，OVS起動後にSegmentation Faultを吐くようになった．
-    // ここかなと思ったけど，上の(a)が出力される前に落ちる．
-    // 初期化してるところでもなかった．Segmentation Faultの発生位置を突き止めて修正する．
-    // その後，改めてmeasureスクリプトを実行してP4 Shield(shm ver.)のスループットとする．
     memcpy(&buffer_vm_info, shm_ptr+SHM_VM_INFO, sizeof(buffer_vm_info));
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
+    printf("@@@ getResult (b)\n");
     printf("@@@ getResult (b)\n");
 
     if (strcmp(buffer_vm_info+SHM_FLAG_SPACE, "drop") == 0) {
