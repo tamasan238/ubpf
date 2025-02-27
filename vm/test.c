@@ -571,6 +571,8 @@ receive_packets(ubpf_jit_fn fn)
 
     printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
 
+    ftruncate(fd, SHM_SIZE);
+
     shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
     if (shm_ptr == MAP_FAILED) {
         perror("mmap");
@@ -611,7 +613,7 @@ receive_packets(ubpf_jit_fn fn)
                     free(dp_packet2);
                     exit(EXIT_FAILURE);
                 }
-                
+
                 dp_packet2->base_ = packet;
 
                 memset(dp_packet2->base_, 0, dp_packet2->allocated_);
