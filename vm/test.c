@@ -571,7 +571,12 @@ receive_packets(ubpf_jit_fn fn)
 
     printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
 
-    ftruncate(fd, SHM_SIZE);
+    if (ftruncate(fd, SHM_SIZE) == -1) {
+        perror("ftruncate");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+    
 
     shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
     if (shm_ptr == MAP_FAILED) {
