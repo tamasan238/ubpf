@@ -21,6 +21,8 @@
 // #define USE_TCP
 #define USE_SHM
 
+// #define DISABLE_BATCH
+
 #include <ubpf_config.h>
 
 #define _GNU_SOURCE
@@ -57,12 +59,36 @@
 #define PORT 11111
 #define WAIT_TIME 1
 #define SHM_NAME "/dev/uio0"
+
+#ifdef DISABLE_BATCH
+
 #define SHM_SIZE 524288 // 512 * 1024
 #define SHM_FLAG_SPACE 1024
 #define SHM_VM_INFO 0
 #define SHM_DP_PACKET2 131072 // 128 * 1024
 #define SHM_PACKET 262144 // 256 * 1024
 #define SHM_RESULT 393216 // 384 * 1024
+
+#endif // DISABLE_BATCH
+
+#ifndef DISABLE_BATCH // Using batch
+
+#define SHM_SIZE (8 * 1024 * 1024) // 8MB
+
+#define SHM_VM_AREA 0
+#define SHM_FLAGS_AREA (SHM_VM_AREA + 2 * 1024 * 1024) // start at 2MB
+#define SHM_OVS_AREA (SHM_FLAGS_AREA + 4*1024) // start at 2MB + 4KB
+
+#define SHM_FLAG_PACKETS SHM_FLAGS_AREA
+#define SHM_FLAG_RESULTS (SHM_FLAGS_AREA + 1)
+#define SHM_FLAG_HOW_MANY_PACKETS (SHM_FLAGS_AREA + 2)
+
+#define SHM_SIZE_DP_PACKET_2 (64 * 1024)
+#define SHM_SIZE_PACKET (64 * 1024)
+#define SHM_SIZE_RESULT (4 * 1024)
+#define SHM_SIZE_PER_PACKET (SHM_SIZE_DP_PACKET_2 + SHM_SIZE_PACKET + SHM_SIZE_RESULT)
+
+#endif // not DISABLE_BATCH
 
 void *shm_ptr;
 
@@ -238,12 +264,16 @@ read_exact(int s, void *buf, size_t size)
     return rcvd;
 }
 
+#ifdef DISABLE_BATCH
+
 int
 receive_packets(ubpf_jit_fn fn)
 {
-    // struct timeval start, end;
-    // long seconds, useconds;
-    // double elapsed;
+    #ifdef DEBUG
+    struct timeval start, end;
+    long seconds, useconds;
+    double elapsed;
+    #endif
 
     int                ret=0;
 
@@ -299,7 +329,10 @@ receive_packets(ubpf_jit_fn fn)
 
     while (1) {
         // dp_packet2
-        // printf("dp_packet2_size: %ld\n", dp_packet2_size);
+        #ifdef DEBUG
+        printf("dp_packet2_size: %ld\n", dp_packet2_size);
+        #endif
+
         dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
         if(dp_packet2 == NULL){
             fprintf(stderr, "ERROR: failed to malloc() 1\n");
@@ -313,10 +346,16 @@ receive_packets(ubpf_jit_fn fn)
             fprintf(stderr, "ERROR: failed to read | dp_packet2\n");
             goto servsocket_cleanup;
         }
+
+        #ifdef DEBUG
         // printf("dp_packet2: received.\n");
+        #endif
 
         // packet
-        // printf("dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
+
+        #ifdef DEBUG
+        printf("dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
+        #endif
 
         if(dp_packet2->allocated_ == 0){
             result[0]='3';
@@ -334,27 +373,35 @@ receive_packets(ubpf_jit_fn fn)
                 fprintf(stderr, "ERROR: failed to read | packet\n");
                 goto servsocket_cleanup;
             }
+            #ifdef DEBUG
             // printf("packet: received.\n");
+            #endif
 
             struct standard_metadata std_meta;
             std_meta.packet_length = dp_packet2->allocated_;
-
-            // gettimeofday(&start, NULL);
-            fn_ret = fn(dp_packet2, &std_meta);
-            // gettimeofday(&end, NULL);
-
-            // seconds = end.tv_sec - start.tv_sec;
-            // useconds = end.tv_usec - start.tv_usec;
-            // elapsed = seconds + useconds/1.0e6;
             
-            // openlog("KSL-IWAI", LOG_CONS | LOG_PID, LOG_USER);
-            // syslog(LOG_WARNING, "Elapsed: %f[sec]\n", elapsed);
-            // closelog();
+            #ifdef DEBUG
+            gettimeofday(&start, NULL);
+            #endif
 
-            //fn_ret = 1;
-            // printf("fn() is called.\n");
+            fn_ret = fn(dp_packet2, &std_meta);
 
-            // printf("Return: 0x%" PRIx64 ", dp_packet2->allocated_: %d\n\n", fn_ret, dp_packet2->allocated_);
+            #ifdef DEBUG
+            gettimeofday(&end, NULL);
+
+            seconds = end.tv_sec - start.tv_sec;
+            useconds = end.tv_usec - start.tv_usec;
+            elapsed = seconds + useconds/1.0e6;
+            
+            openlog("KSL-IWAI", LOG_CONS | LOG_PID, LOG_USER);
+            syslog(LOG_WARNING, "Elapsed: %f[sec]\n", elapsed);
+            closelog();
+
+            // fn_ret = 1;
+            printf("fn() is called.\n");
+
+            printf("Return: 0x%" PRIx64 ", dp_packet2->allocated_: %d\n\n", fn_ret, dp_packet2->allocated_);
+            #endif
 
             result[0]='0'+fn_ret;
             result[1]='\0';
@@ -385,7 +432,7 @@ servsocket_cleanup:
 end:
     return ret;
 
-    #endif
+    #endif // USE_TCP
 
     #ifdef USE_SHM
 
@@ -486,8 +533,125 @@ end:
 
     return ret;
 
-    #endif
+    #endif // USE_SHM
 }
+
+#endif // DISABLE_BATCH
+
+#ifndef DISABLE_BATCH // Using batch process
+int
+receive_packets(ubpf_jit_fn fn)
+{
+    int                ret=0;
+
+    struct dp_packet_p4 *dp_packet2 = NULL;
+    uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
+    char               *packet = NULL;
+    struct standard_metadata std_meta;
+
+    uint64_t           fn_ret;
+    char               result[2];
+
+    size_t             how_many_packets= 0;
+
+    dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
+    if(dp_packet2 == NULL){
+        fprintf(stderr, "ERROR: failed to malloc() 1\n");
+        exit(EXIT_FAILURE);
+    }
+
+    #ifdef USE_SHM
+
+    int fd = open(SHM_NAME, O_RDWR);
+
+    if (fd < 0) {
+        perror("shm_open");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
+
+    shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
+    if (shm_ptr == MAP_FAILED) {
+        perror("mmap");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("SHM opened.\n");
+    printf("mapped to %p\n", shm_ptr);
+    
+    memcpy(shm_ptr+SHM_VM_AREA, "pass\0", sizeof("pass\0"));
+
+    while(1){
+        // TODO: Implement shutdown logic
+
+        while (*((char *)shm_ptr + SHM_FLAG_PACKETS) != 1) {
+            usleep(WAIT_TIME);
+        }
+
+        memcpy(&how_many_packets, shm_ptr+SHM_FLAG_HOW_MANY_PACKETS, 
+            sizeof(how_many_packets));
+
+        for (int packets = 0; packets < how_many_packets; packets++) {
+
+            // dp_packet2
+            memset(dp_packet2, 0, dp_packet2_size);
+            memcpy(dp_packet2, shm_ptr+SHM_OVS_AREA+
+                (packets*SHM_SIZE_PER_PACKET), dp_packet2_size);
+
+            // packet
+            if(dp_packet2->allocated_ == 0){
+                result[0]='3';
+                result[1]='\0';
+                printf("allocated_ is 0\n\n");
+            }else{
+                packet = malloc(dp_packet2->allocated_);
+                if(packet == NULL){
+                    fprintf(stderr, "ERROR: failed to malloc() 2\n");
+                    free(dp_packet2);
+                    exit(EXIT_FAILURE);
+                }
+                
+                dp_packet2->base_ = packet;
+
+                memset(dp_packet2->base_, 0, dp_packet2->allocated_);
+                memcpy(dp_packet2->base_, shm_ptr+SHM_OVS_AREA+
+                    (packets*SHM_SIZE_PER_PACKET)+SHM_SIZE_DP_PACKET_2, 
+                    dp_packet2->allocated_);
+
+                *((char *)shm_ptr + SHM_FLAG_RESULTS) = 0;
+
+                std_meta.packet_length = dp_packet2->allocated_;
+
+                fn_ret = fn(dp_packet2, &std_meta);
+
+                result[0]='0'+fn_ret;
+                result[1]='\0';
+                
+                free(packet);
+            }
+
+            // result
+            while (*((char *)shm_ptr + SHM_FLAG_RESULTS) != 0) {
+                usleep(WAIT_TIME);
+            }
+            memcpy(shm_ptr+SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
+                SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET, result, sizeof(result));
+            *((char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
+
+            free(dp_packet2);
+        }
+    }
+
+    munmap(shm_ptr, SHM_SIZE);
+    close(fd);
+
+    return ret;
+
+    #endif // USE_SHM
+}
+
+#endif // not DISABLE_BATCH
 
 int
 main(int argc, char** argv)
@@ -907,10 +1071,10 @@ getResult()
 {
     int ret;
 
-    if (strcmp(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "drop") == 0) {
+    if (strcmp(shm_ptr+SHM_VM_AREA, "drop") == 0) {
         ret = 0;
         // printf("shm: drop\n");
-    } else if (strcmp(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "pass") == 0) {
+    } else if (strcmp(shm_ptr+SHM_VM_AREA, "pass") == 0) {
         ret = 1;
         // printf("shm: pass\n");
     } else {
