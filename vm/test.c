@@ -415,14 +415,16 @@ end:
     
     memcpy(shm_ptr+SHM_VM_INFO+SHM_FLAG_SPACE, "pass\0", sizeof("pass\0"));
 
-    // while(1){// for debug
-    //     printf("reading... \n");// for debug
-    //     printf("%d, %d, %d\n", 
-    //         *((char *)shm_ptr + SHM_DP_PACKET2),
-    //         *((char *)shm_ptr + SHM_PACKET),
-    //         *((char *)shm_ptr + SHM_RESULT));// for debug
-    //     usleep(WAIT_TIME*1000);// for debug
-    // }
+    #ifdef DEBUG
+    while(1){// for debug
+        printf("reading... \n");// for debug
+        printf("%d, %d, %d\n", 
+            *((char *)shm_ptr + SHM_DP_PACKET2),
+            *((char *)shm_ptr + SHM_PACKET),
+            *((char *)shm_ptr + SHM_RESULT));// for debug
+        usleep(WAIT_TIME*1000);// for debug
+    }
+    #endif
 
     while(1){
         // TODO: Implement shutdown logic
@@ -439,9 +441,7 @@ end:
         while (*((char *)shm_ptr + SHM_DP_PACKET2) != 1) {
         	usleep(WAIT_TIME);
     	}
-        // printf("process started.\n");
         memcpy(dp_packet2, shm_ptr+SHM_DP_PACKET2+SHM_FLAG_SPACE, dp_packet2_size);
-        // *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
 
         // packet
         if(dp_packet2->allocated_ == 0){
@@ -458,11 +458,7 @@ end:
             dp_packet2->base_ = packet;
 
             memset(dp_packet2->base_, 0, dp_packet2->allocated_);
-            // while (*((char *)shm_ptr + SHM_PACKET) != 1) {
-            // 	usleep(WAIT_TIME);
-        	// }
             memcpy(dp_packet2->base_, shm_ptr+SHM_PACKET+SHM_FLAG_SPACE, dp_packet2->allocated_);
-            // *((char *)shm_ptr + SHM_PACKET) = 0;
             *((char *)shm_ptr + SHM_DP_PACKET2) = 0;
 
             struct standard_metadata std_meta = { .packet_length = dp_packet2->allocated_ };
