@@ -554,12 +554,6 @@ receive_packets(ubpf_jit_fn fn)
 
     size_t             how_many_packets= 0;
 
-    dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
-    if(dp_packet2 == NULL){
-        fprintf(stderr, "ERROR: failed to malloc() 1\n");
-        exit(EXIT_FAILURE);
-    }
-
     #ifdef USE_SHM
 
     int fd = open(SHM_NAME, O_RDWR);
@@ -570,7 +564,7 @@ receive_packets(ubpf_jit_fn fn)
     }
 
     printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
-    
+
     shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
     if (shm_ptr == MAP_FAILED) {
         perror("mmap");
@@ -595,6 +589,11 @@ receive_packets(ubpf_jit_fn fn)
         for (int packets = 0; packets < how_many_packets; packets++) {
 
             // dp_packet2
+            dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
+            if(dp_packet2 == NULL){
+                fprintf(stderr, "ERROR: failed to malloc() 1\n");
+                exit(EXIT_FAILURE);
+            }
             memset(dp_packet2, 0, dp_packet2_size);
             memcpy(dp_packet2, shm_ptr+SHM_OVS_AREA+
                 (packets*SHM_SIZE_PER_PACKET), dp_packet2_size);
@@ -628,7 +627,6 @@ receive_packets(ubpf_jit_fn fn)
                 result[0]='0'+fn_ret;
                 result[1]='\0';
                 
-                free(packet);
             }
 
             // result
@@ -640,6 +638,7 @@ receive_packets(ubpf_jit_fn fn)
             *((char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
 
             free(dp_packet2);
+            free(packet);
         }
     }
 
