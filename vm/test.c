@@ -604,6 +604,11 @@ receive_packets(ubpf_jit_fn fn)
                 result[1]='\0';
                 printf("allocated_ is 0\n\n");
             }else{
+                if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
+                    fprintf(stderr, "ERROR: allocated_ exceeds limit\n");
+                    free(dp_packet2);
+                    exit(EXIT_FAILURE);
+                }                
                 packet = malloc(dp_packet2->allocated_);
                 if(packet == NULL){
                     fprintf(stderr, "ERROR: failed to malloc() 2\n");
@@ -618,7 +623,7 @@ receive_packets(ubpf_jit_fn fn)
                     (packets*SHM_SIZE_PER_PACKET)+SHM_SIZE_DP_PACKET_2, 
                     dp_packet2->allocated_);
 
-                *((char *)shm_ptr + SHM_FLAG_RESULTS) = 0;
+                *((volatile char *)shm_ptr + SHM_FLAG_PACKETS) = 0;
 
                 std_meta.packet_length = dp_packet2->allocated_;
 
@@ -635,10 +640,10 @@ receive_packets(ubpf_jit_fn fn)
             }
             memcpy(shm_ptr+SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET, result, sizeof(result));
-            *((char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
+            *((volatile char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
 
-            free(dp_packet2);
             free(packet);
+            free(dp_packet2);
         }
     }
 
