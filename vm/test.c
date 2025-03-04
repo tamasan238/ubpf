@@ -632,6 +632,12 @@ receive_packets(ubpf_jit_fn fn)
             while (*((char *)shm_ptr + SHM_FLAG_RESULTS) != 0) {
                 usleep(WAIT_TIME);
             }
+            
+            #define DEBUG_RESULT_RANDOMLY
+            #ifdef DEBUG_RESULT_RANDOMLY
+            srand((unsigned int)time(NULL));
+            fn_ret = rand()%2;
+            #endif
 
             *((volatile char *)shm_ptr+
                 SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
