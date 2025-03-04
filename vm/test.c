@@ -550,7 +550,6 @@ receive_packets(ubpf_jit_fn fn)
     struct standard_metadata std_meta;
 
     uint64_t           fn_ret;
-    // char               result[2];
 
     size_t             how_many_packets= 0;
 
@@ -600,8 +599,6 @@ receive_packets(ubpf_jit_fn fn)
 
             // packet
             if(dp_packet2->allocated_ == 0){
-                // result[0]='3';
-                // result[1]='\0';
                 printf("allocated_ is 0\n\n");
                 fn_ret=3;
             }else{
@@ -629,18 +626,13 @@ receive_packets(ubpf_jit_fn fn)
                 std_meta.packet_length = dp_packet2->allocated_;
 
                 fn_ret = fn(dp_packet2, &std_meta);
-
-                // result[0]='0'+fn_ret;
-                // result[1]='\0';
-                
+                printf("fn_ret: %ld\n", fn_ret);
             }
 
             // result
             while (*((char *)shm_ptr + SHM_FLAG_RESULTS) != 0) {
                 usleep(WAIT_TIME);
             }
-            // memcpy(shm_ptr+SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
-            //     SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET, result, sizeof(result));
 
             *((volatile char *)shm_ptr+
                 SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
