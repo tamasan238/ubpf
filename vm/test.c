@@ -626,7 +626,6 @@ receive_packets(ubpf_jit_fn fn)
                 std_meta.packet_length = dp_packet2->allocated_;
 
                 fn_ret = fn(dp_packet2, &std_meta);
-                printf("fn_ret: %ld\n", fn_ret);
             }
 
             // result
