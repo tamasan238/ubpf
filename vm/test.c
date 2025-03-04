@@ -633,7 +633,6 @@ receive_packets(ubpf_jit_fn fn)
                 usleep(WAIT_TIME);
             }
             
-            #define DEBUG_RESULT_RANDOMLY
             #ifdef DEBUG_RESULT_RANDOMLY
             srand((unsigned int)time(NULL));
             fn_ret = rand()%2;
