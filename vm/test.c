@@ -21,7 +21,7 @@
 // #define USE_TCP
 #define USE_SHM
 
-// #define DISABLE_BATCH
+#define DISABLE_BATCH
 
 #include <ubpf_config.h>
 
@@ -1077,6 +1077,19 @@ getResult()
 {
     int ret;
 
+    #ifdef DISABLE_BATCH
+    if (strcmp(shm_ptr+SHM_VM_INFO, "drop") == 0) {
+        ret = 0;
+        // printf("shm: drop\n");
+    } else if (strcmp(shm_ptr+SHM_VM_INFO, "pass") == 0) {
+        ret = 1;
+        // printf("shm: pass\n");
+    } else {
+        ret = -1;
+    }
+    #endif
+
+    #ifndef DISABLE_BATCH
     if (strcmp(shm_ptr+SHM_VM_AREA, "drop") == 0) {
         ret = 0;
         // printf("shm: drop\n");
@@ -1086,6 +1099,7 @@ getResult()
     } else {
         ret = -1;
     }
+    #endif
 
     return ret;
 }
