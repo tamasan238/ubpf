@@ -57,7 +57,7 @@
 // #include <syslog.h>
 // #include <sys/time.h>
 #define PORT 11111
-#define WAIT_TIME 100
+#define WAIT_TIME 10
 #define SHM_NAME "/dev/uio0"
 
 #ifdef DISABLE_BATCH
