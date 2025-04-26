@@ -21,7 +21,7 @@
 // #define USE_TCP
 #define USE_SHM
 
-// #define DISABLE_BATCH
+#define DISABLE_BATCH
 
 #include <ubpf_config.h>
 
