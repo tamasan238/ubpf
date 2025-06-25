@@ -18,9 +18,6 @@
  * limitations under the License.
  */
 
-// #define USE_TCP
-#define USE_SHM
-
 // #define DISABLE_BATCH
 
 #include <ubpf_config.h>
@@ -56,7 +53,7 @@
 
 // #include <syslog.h>
 // #include <sys/time.h>
-#define PORT 11111
+
 #define WAIT_TIME 1
 #define SHM_NAME "/dev/uio0"
 
@@ -243,27 +240,6 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
     return false;
 }
 
-ssize_t
-read_exact(int s, void *buf, size_t size)
-{
-    char *ptr = buf;
-    ssize_t rcvd = 0, ret;
-
-    while (rcvd < size) {
-        ret = read(s, &ptr[rcvd], size - rcvd);
-        if (ret < 0) {
-          perror("read");
-          return -1;
-        }
-        else if (ret == 0)
-          break;
-
-        rcvd += ret;
-    }
-
-    return rcvd;
-}
-
 #ifdef DISABLE_BATCH
 
 int
@@ -283,158 +259,6 @@ receive_packets(ubpf_jit_fn fn)
 
     uint64_t           fn_ret;
     char               result[2];
-
-    #ifdef USE_TCP
-
-    int                sockfd;
-    int                connd;
-    struct sockaddr_in servAddr;
-    struct sockaddr_in clientAddr;
-    socklen_t          size = sizeof(clientAddr);
-
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        fprintf(stderr, "ERROR: failed to create the socket\n");
-        ret = -1;
-        goto end;
-    }
-
-    memset(&servAddr, 0, sizeof(servAddr));
-
-    servAddr.sin_family      = AF_INET;
-    servAddr.sin_port        = htons(PORT);
-    servAddr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(sockfd, (struct sockaddr*)&servAddr, sizeof(servAddr)) == -1) {
-        fprintf(stderr, "ERROR: failed to bind\n");
-        ret = -1;
-        goto servsocket_cleanup;
-    }
-
-    if (listen(sockfd, 5) == -1) {
-        fprintf(stderr, "ERROR: failed to listen\n");
-        ret = -1;
-        goto servsocket_cleanup;
-    }
-
-    printf("Waiting for a connection...\n");
-
-    if ((connd = accept(sockfd, (struct sockaddr*)&clientAddr, &size))
-        == -1) {
-        fprintf(stderr, "ERROR: failed to accept the connection\n\n");
-        ret = -1;
-        goto servsocket_cleanup;
-    }
-
-    printf("Client connected successfully\n");
-
-    while (1) {
-        // dp_packet2
-        #ifdef DEBUG
-        printf("dp_packet2_size: %ld\n", dp_packet2_size);
-        #endif
-
-        dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
-        if(dp_packet2 == NULL){
-            fprintf(stderr, "ERROR: failed to malloc() 1\n");
-            goto servsocket_cleanup;
-        }
-        if (read_exact(connd, dp_packet2, dp_packet2_size) != dp_packet2_size) {
-            if (strncmp((char *)dp_packet2, "shutdown", sizeof("shutdown")) == 0){
-                printf("received shutdown cmd\n");
-                break;
-            }
-            fprintf(stderr, "ERROR: failed to read | dp_packet2\n");
-            goto servsocket_cleanup;
-        }
-
-        #ifdef DEBUG
-        // printf("dp_packet2: received.\n");
-        #endif
-
-        // packet
-
-        #ifdef DEBUG
-        printf("dp_packet2->allocated_: %d\n", dp_packet2->allocated_);
-        #endif
-
-        if(dp_packet2->allocated_ == 0){
-            result[0]='3';
-            result[1]='\0';
-            // HERE!!!!!!!!!!!
-            printf("allocated_ is 0\n\n");
-        }else{
-            packet = malloc(dp_packet2->allocated_);
-            if(packet == NULL){
-                fprintf(stderr, "ERROR: failed to malloc() 2\n");
-                goto servsocket_cleanup;
-            }
-            dp_packet2->base_ = packet;
-            if (read_exact(connd, dp_packet2->base_, dp_packet2->allocated_) != dp_packet2->allocated_) {
-                fprintf(stderr, "ERROR: failed to read | packet\n");
-                goto servsocket_cleanup;
-            }
-            #ifdef DEBUG
-            // printf("packet: received.\n");
-            #endif
-
-            struct standard_metadata std_meta;
-            std_meta.packet_length = dp_packet2->allocated_;
-            
-            #ifdef DEBUG
-            gettimeofday(&start, NULL);
-            #endif
-
-            fn_ret = fn(dp_packet2, &std_meta);
-
-            #ifdef DEBUG
-            gettimeofday(&end, NULL);
-
-            seconds = end.tv_sec - start.tv_sec;
-            useconds = end.tv_usec - start.tv_usec;
-            elapsed = seconds + useconds/1.0e6;
-            
-            openlog("KSL-IWAI", LOG_CONS | LOG_PID, LOG_USER);
-            syslog(LOG_WARNING, "Elapsed: %f[sec]\n", elapsed);
-            closelog();
-
-            // fn_ret = 1;
-            printf("fn() is called.\n");
-
-            printf("Return: 0x%" PRIx64 ", dp_packet2->allocated_: %d\n\n", fn_ret, dp_packet2->allocated_);
-            #endif
-
-            result[0]='0'+fn_ret;
-            result[1]='\0';
-        }
-
-        if ((ret = write(connd, &result, sizeof(result))) != 2) {
-            fprintf(stderr, "ERROR: failed to write | result\n");
-            goto servsocket_cleanup;
-        }
-
-        if(dp_packet2 != NULL){
-            free(dp_packet2);
-            dp_packet2 = NULL;
-        }
-        if(packet != NULL){
-            free(packet);
-            packet = NULL;
-        }
-    }
-    printf("Shutdown complete\n");
-    close(connd);
-servsocket_cleanup:
-    close(sockfd);
-    if(dp_packet2 != NULL)
-        free(dp_packet2);
-    if(packet != NULL)
-        free(packet);
-end:
-    return ret;
-
-    #endif // USE_TCP
-
-    #ifdef USE_SHM
 
     int fd = open(SHM_NAME, O_RDWR);
 
@@ -533,7 +357,6 @@ end:
 
     return ret;
 
-    #endif // USE_SHM
 }
 
 #endif // DISABLE_BATCH
@@ -552,8 +375,6 @@ receive_packets(ubpf_jit_fn fn)
     uint64_t           fn_ret;
 
     size_t             how_many_packets= 0;
-
-    #ifdef USE_SHM
 
     int fd = open(SHM_NAME, O_RDWR);
 
@@ -653,8 +474,6 @@ receive_packets(ubpf_jit_fn fn)
     close(fd);
 
     return ret;
-
-    #endif // USE_SHM
 }
 
 #endif // not DISABLE_BATCH
