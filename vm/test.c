@@ -322,7 +322,9 @@ receive_packets(ubpf_jit_fn fn)
                 SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET) = (char)fn_ret;
 
-            free(packet);
+            if (packet != NULL) {
+                free(packet);   // without allocate_ is 0
+            }
             free(dp_packet2);
             printf("free\n");
         }
