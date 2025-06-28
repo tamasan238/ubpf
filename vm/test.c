@@ -319,6 +319,8 @@ receive_packets(ubpf_jit_fn fn)
             srand((unsigned int)time(NULL));
             fn_ret = rand()%2;
             #endif
+
+            fn_ret = 1; //for debug (pass)
             
             // printf("d");
 
