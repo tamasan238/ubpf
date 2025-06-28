@@ -295,12 +295,7 @@ receive_packets(ubpf_jit_fn fn)
                 }
 
                 dp_packet2->base_ = packet;
-
                 memset(dp_packet2->base_, 0, 1);
-                memcpy(dp_packet2->base_, shm_ptr+SHM_OVS_AREA+
-                    (packets*SHM_SIZE_PER_PACKET)+SHM_SIZE_DP_PACKET_2, 
-                    1);
-
                 std_meta.packet_length = 1;
 
                 fn_ret = fn(dp_packet2, &std_meta);
