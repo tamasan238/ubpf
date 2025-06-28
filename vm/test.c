@@ -283,6 +283,7 @@ receive_packets(ubpf_jit_fn fn)
             if(dp_packet2->allocated_ == 0){
                 printf("allocated_ is 0\n\n");
                 fn_ret=3;
+                printf("a");
             }else{
                 if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
                     fprintf(stderr, "ERROR: allocated_ exceeds limit\n");
@@ -307,29 +308,36 @@ receive_packets(ubpf_jit_fn fn)
 
                 fn_ret = fn(dp_packet2, &std_meta);
             }
-
+            printf("b");
             // result
             while (*((char *)shm_ptr + SHM_FLAG_RESULTS) != 0) {
                 usleep(WAIT_TIME);
+                printf("c");
             }
             
             #ifdef DEBUG_RESULT_RANDOMLY
             srand((unsigned int)time(NULL));
             fn_ret = rand()%2;
             #endif
+            
+            printf("d");
 
             *((volatile char *)shm_ptr+
                 SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET) = (char)fn_ret;
-
+            
+            printf("e");
             if(packet != NULL) {
                 free(packet);
+                printf("f");
             }
             if(dp_packet2 != NULL){
                 free(dp_packet2);
+                printf("g");
             }
             printf("free\n");
         }
+        printf("h");
         *((volatile char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
         *((volatile char *)shm_ptr + SHM_FLAG_PACKETS) = 0;
         printf("batch finished\n");
