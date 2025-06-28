@@ -280,9 +280,11 @@ receive_packets(ubpf_jit_fn fn)
                 (packets*SHM_SIZE_PER_PACKET), dp_packet2_size);
 
             // packet
+            packet == NULL;
             if(dp_packet2->allocated_ == 0){
                 printf("allocated_ is 0\n\n");
-                fn_ret=3;
+                // fn_ret=3;
+                fn_ret = 1; // (pass)
                 // printf("a");
             }else{
                 if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
