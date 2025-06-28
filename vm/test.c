@@ -284,21 +284,8 @@ receive_packets(ubpf_jit_fn fn)
             if(dp_packet2->allocated_ == 0){
                 printf("allocated_ is 0\n\n");
                 // fn_ret=3;
-                // fn_ret = 1; // (pass)
+                fn_ret = 1; // (pass)
                 // printf("a");
-
-                packet = malloc(1);
-                if(packet == NULL){
-                    fprintf(stderr, "ERROR: failed to malloc() 2\n");
-                    free(dp_packet2);
-                    exit(EXIT_FAILURE);
-                }
-
-                dp_packet2->base_ = packet;
-                memset(dp_packet2->base_, 0, 1);
-                std_meta.packet_length = 1;
-
-                fn_ret = fn(dp_packet2, &std_meta);
             }else{
                 if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
                     fprintf(stderr, "ERROR: allocated_ exceeds limit\n");
