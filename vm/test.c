@@ -321,12 +321,14 @@ receive_packets(ubpf_jit_fn fn)
             *((volatile char *)shm_ptr+
                 SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET) = (char)fn_ret;
-                
+
             free(packet);
             free(dp_packet2);
+            printf("free\n");
         }
         *((volatile char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
         *((volatile char *)shm_ptr + SHM_FLAG_PACKETS) = 0;
+        printf("batch finished\n");
     }
 
     munmap(shm_ptr, SHM_SIZE);
