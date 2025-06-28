@@ -303,8 +303,6 @@ receive_packets(ubpf_jit_fn fn)
                     (packets*SHM_SIZE_PER_PACKET)+SHM_SIZE_DP_PACKET_2, 
                     dp_packet2->allocated_);
 
-                *((volatile char *)shm_ptr + SHM_FLAG_PACKETS) = 0;
-
                 std_meta.packet_length = dp_packet2->allocated_;
 
                 fn_ret = fn(dp_packet2, &std_meta);
@@ -323,12 +321,12 @@ receive_packets(ubpf_jit_fn fn)
             *((volatile char *)shm_ptr+
                 SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET) = (char)fn_ret;
-            
-            *((volatile char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
-
+                
             free(packet);
             free(dp_packet2);
         }
+        *((volatile char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
+        *((volatile char *)shm_ptr + SHM_FLAG_PACKETS) = 0;
     }
 
     munmap(shm_ptr, SHM_SIZE);
