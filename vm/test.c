@@ -62,29 +62,29 @@
 #define META_AREA (VM_AREA + 2 * 1024 * 1024)      // Start at 2MB
 #define PACKETS_AREA (META_AREA + 2 * 1024 * 1024) // Start at 4MB
 
-void *shm_ptr;
 int fd;
+void *shm_ptr;
 /* end */
 
 /* META_AREA */
 typedef struct
 {
     long long ovs_thread_id;
-    int p4session_id;
+    int p4runtime_id;
 } Connection;
 
 #define MAX_CONNECTIONS 512
-#define SHM_SESSION_TABLE (META_AREA)
+#define SHM_SESSION_TABLE META_AREA
 #define SHM_TABLE_IS_LOCKED (SHM_SESSION_TABLE + sizeof(Connection) * MAX_CONNECTIONS)
 
 Connection *session;
 /* end */
 
 /* PACKETS_AREA */
-#define SHM_SIZE_DP_PACKET_2 (64)
-#define SHM_SIZE_PACKET (64)
-#define SHM_SIZE_RESULT (32)
-#define SHM_SIZE_FLAGS (32)
+#define SHM_SIZE_DP_PACKET_2 64
+#define SHM_SIZE_PACKET 64
+#define SHM_SIZE_RESULT 32
+#define SHM_SIZE_FLAGS 32
 #define SHM_SIZE_PER_PACKET (SHM_SIZE_DP_PACKET_2 + SHM_SIZE_PACKET + SHM_SIZE_RESULT + SHM_SIZE_FLAGS)
 
 #define SHM_FLAG_PACKETS (PACKETS_AREA + SHM_SIZE_PER_PACKET - SHM_SIZE_FLAGS)
@@ -296,7 +296,7 @@ get_session_id(int runtime_pid)
 {
     for (int i = 0; i < MAX_CONNECTIONS; i++)
     {
-        if (session[i].p4session_id == runtime_pid)
+        if (session[i].p4runtime_id == runtime_pid)
         {
             syslog(LOG_WARNING, "Session ID is %d", i);
             return i;
@@ -351,6 +351,12 @@ receive_packets(ubpf_jit_fn fn)
         {
             session_id = get_session_id(runtime_pid);
             ovs_tid = get_ovs_tid(session_id);
+            if(ovs_tid == -1)
+            {
+                // not linked with ovs thread
+                usleep(10); // 10us
+                continue;
+            }
             offset = calc_offset(session_id);
         }
 
