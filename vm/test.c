@@ -852,10 +852,10 @@ getResult()
 {
     int ret;
 
-    if (strcmp(shm_ptr+SHM_VM_AREA, "drop") == 0) {
+    if (strcmp(shm_ptr+VM_AREA, "drop") == 0) {
         ret = 0;
         // printf("shm: drop\n");
-    } else if (strcmp(shm_ptr+SHM_VM_AREA, "pass") == 0) {
+    } else if (strcmp(shm_ptr+VM_AREA, "pass") == 0) {
         ret = 1;
         // printf("shm: pass\n");
     } else {
