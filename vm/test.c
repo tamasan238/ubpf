@@ -49,28 +49,48 @@
 #endif
 #endif
 
-// #include <syslog.h>
+#include <syslog.h>
 // #include <sys/time.h>
 
 #define WAIT_TIME 1
-#define SHM_NAME "/dev/uio0"
 
+/* for shm */
+#define SHM_NAME "/dev/uio0"
 #define SHM_SIZE (8 * 1024 * 1024) // 8MB
 
-#define SHM_VM_AREA 0
-#define SHM_FLAGS_AREA (SHM_VM_AREA + 2 * 1024 * 1024) // start at 2MB
-#define SHM_OVS_AREA (SHM_FLAGS_AREA + 4*1024) // start at 2MB + 4KB
-
-#define SHM_FLAG_PACKETS SHM_FLAGS_AREA
-#define SHM_FLAG_RESULTS (SHM_FLAGS_AREA + 1)
-#define SHM_FLAG_HOW_MANY_PACKETS (SHM_FLAGS_AREA + 2)
-
-#define SHM_SIZE_DP_PACKET_2 (64 * 1024)
-#define SHM_SIZE_PACKET (64 * 1024)
-#define SHM_SIZE_RESULT (4 * 1024)
-#define SHM_SIZE_PER_PACKET (SHM_SIZE_DP_PACKET_2 + SHM_SIZE_PACKET + SHM_SIZE_RESULT)
+#define VM_AREA 0                                  // 
+#define META_AREA (VM_AREA + 2 * 1024 * 1024)      // Start at 2MB
+#define PACKETS_AREA (META_AREA + 2 * 1024 * 1024) // Start at 4MB
 
 void *shm_ptr;
+int fd;
+/* end */
+
+/* META_AREA */
+typedef struct
+{
+    long long ovs_thread_id;
+    int p4session_id;
+} Connection;
+
+#define MAX_CONNECTIONS 512
+#define SHM_SESSION_TABLE (META_AREA)
+#define SHM_TABLE_IS_LOCKED (SHM_SESSION_TABLE + sizeof(Connection) * MAX_CONNECTIONS)
+
+Connection *session;
+/* end */
+
+/* PACKETS_AREA */
+#define SHM_SIZE_DP_PACKET_2 (64)
+#define SHM_SIZE_PACKET (64)
+#define SHM_SIZE_RESULT (32)
+#define SHM_SIZE_FLAGS (32)
+#define SHM_SIZE_PER_PACKET (SHM_SIZE_DP_PACKET_2 + SHM_SIZE_PACKET + SHM_SIZE_RESULT + SHM_SIZE_FLAGS)
+
+#define SHM_FLAG_PACKETS (PACKETS_AREA + SHM_SIZE_PER_PACKET - SHM_SIZE_FLAGS)
+#define SHM_FLAG_RESULTS (SHM_FLAG_PACKETS + 1)
+#define SHM_FLAG_HOW_MANY_PACKETS (SHM_FLAG_PACKETS + 2) // use only first packet in batch
+/* end */
 
 void
 ubpf_set_register_offset(int x);
@@ -223,28 +243,17 @@ map_relocation_bounds_check_function(void* user_context, uint64_t addr, uint64_t
     return false;
 }
 
-int
-receive_packets(ubpf_jit_fn fn)
+void
+shm_start(void)
 {
-    int                ret=0;
-
-    struct dp_packet_p4 *dp_packet2 = NULL;
-    uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
-    char               *packet = NULL;
-    struct standard_metadata std_meta;
-
-    uint64_t           fn_ret;
-
-    size_t             how_many_packets= 0;
-
-    int fd = open(SHM_NAME, O_RDWR);
+    fd = open(SHM_NAME, O_RDWR);
 
     if (fd < 0) {
         perror("shm_open");
         exit(EXIT_FAILURE);
     }
 
-    printf("fd: %d，SHM_SIZE: %d\n", fd, SHM_SIZE);
+    syslog(LOG_WARNING, "fd: %d, SHM_SIZE: %d", fd, SHM_SIZE);
 
     shm_ptr = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 4096);
     if (shm_ptr == MAP_FAILED) {
@@ -252,19 +261,106 @@ receive_packets(ubpf_jit_fn fn)
         exit(EXIT_FAILURE);
     }
 
-    printf("SHM opened.\n");
-    printf("mapped to %p\n", shm_ptr);
-    
-    memcpy(shm_ptr+SHM_VM_AREA, "pass\0", sizeof("pass\0"));
+    syslog(LOG_WARNING, "SHM opened. mapped to %p", shm_ptr);
+}
+
+void
+shm_init(void)
+{
+    /* VM_AREA */
+    memcpy(shm_ptr+VM_AREA, "pass\0", sizeof("pass\0"));
+
+    /* META_AREA */
+    session = (Connection *)(shm_ptr + SHM_SESSION_TABLE);
+}
+
+void
+shm_end(void)
+{
+    munmap(shm_ptr, SHM_SIZE);
+    close(fd);
+}
+
+int
+need_re_link(int session_id, long long ovs_tid)
+{
+    if (session_id == -1) // first time
+        return 1;
+    if (session[session_id].ovs_thread_id != ovs_tid) // changed tid
+        return 1;
+    return 0;
+}
+
+int
+get_session_id(int runtime_pid)
+{
+    for (int i = 0; i < MAX_CONNECTIONS; i++)
+    {
+        if (session[i].p4session_id == runtime_pid)
+        {
+            syslog(LOG_WARNING, "Session ID is %d", i);
+            return i;
+        }
+    }
+    syslog(LOG_WARNING, "session not found.");
+    return -1;
+}
+
+long long
+get_ovs_tid(int session_id)
+{
+    long long ret = session[session_id].ovs_thread_id;
+    syslog(LOG_WARNING, "pair OVS TID is %lld", ret);
+    return ret;
+}
+
+intptr_t
+calc_offset(int session_id)
+{
+    intptr_t ret = SHM_SIZE_PER_PACKET * session_id;
+    syslog(LOG_WARNING, "Calculated offset is %d", (int)ret);
+    return ret;
+}
+
+int
+receive_packets(ubpf_jit_fn fn)
+{
+    int                ret = 0;
+    int                runtime_pid = -1;
+    int                session_id = -1;
+    long long          ovs_tid = -1;
+
+    struct dp_packet_p4 *dp_packet2 = NULL;
+    uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
+    char               *packet = NULL;
+    struct standard_metadata std_meta;
+
+    intptr_t offset = -1;
+    uint64_t           fn_ret;
+    size_t             how_many_packets = 0;
+
+    openlog("uBPF VM", LOG_CONS | LOG_PID, LOG_USER);
+
+    shm_start();
+    shm_init();
+
+    runtime_pid = (int)getpid();
 
     while(1){
+        if (need_re_link(session_id, ovs_tid) == 1)
+        {
+            session_id = get_session_id(runtime_pid);
+            ovs_tid = get_ovs_tid(session_id);
+            offset = calc_offset(session_id);
+        }
+
         // TODO: Implement shutdown logic
 
-        while (*((char *)shm_ptr + SHM_FLAG_PACKETS) != 1) {
+        while (*((char *)shm_ptr+offset+SHM_FLAG_PACKETS) != 1) {
             usleep(WAIT_TIME);
         }
 
-        memcpy(&how_many_packets, shm_ptr+SHM_FLAG_HOW_MANY_PACKETS, 
+        memcpy(&how_many_packets, shm_ptr+offset+SHM_FLAG_HOW_MANY_PACKETS, 
             sizeof(how_many_packets));
 
         for (int packets = 0; packets < how_many_packets; packets++) {
@@ -272,11 +368,11 @@ receive_packets(ubpf_jit_fn fn)
             // dp_packet2
             dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
             if(dp_packet2 == NULL){
-                fprintf(stderr, "ERROR: failed to malloc() 1\n");
+                syslog(LOG_WARNING, "ERROR: failed to malloc() 1");
                 exit(EXIT_FAILURE);
             }
             memset(dp_packet2, 0, dp_packet2_size);
-            memcpy(dp_packet2, shm_ptr+SHM_OVS_AREA+
+            memcpy(dp_packet2, shm_ptr+offset+PACKETS_AREA+
                 (packets*SHM_SIZE_PER_PACKET), dp_packet2_size);
 
             // packet
@@ -286,13 +382,13 @@ receive_packets(ubpf_jit_fn fn)
                 fn_ret = 1; // (pass)
             }else{
                 if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
-                    fprintf(stderr, "ERROR: allocated_ exceeds limit\n");
+                    syslog(LOG_WARNING, "ERROR: allocated_ exceeds limit");
                     free(dp_packet2);
                     exit(EXIT_FAILURE);
                 }                
                 packet = malloc(dp_packet2->allocated_);
                 if(packet == NULL){
-                    fprintf(stderr, "ERROR: failed to malloc() 2\n");
+                    syslog(LOG_WARNING, "ERROR: failed to malloc() 2");
                     free(dp_packet2);
                     exit(EXIT_FAILURE);
                 }
@@ -300,7 +396,7 @@ receive_packets(ubpf_jit_fn fn)
                 dp_packet2->base_ = packet;
 
                 memset(dp_packet2->base_, 0, dp_packet2->allocated_);
-                memcpy(dp_packet2->base_, shm_ptr+SHM_OVS_AREA+
+                memcpy(dp_packet2->base_, shm_ptr+offset+PACKETS_AREA+
                     (packets*SHM_SIZE_PER_PACKET)+SHM_SIZE_DP_PACKET_2, 
                     dp_packet2->allocated_);
 
@@ -309,7 +405,7 @@ receive_packets(ubpf_jit_fn fn)
                 fn_ret = fn(dp_packet2, &std_meta);
             }
             // result
-            while (*((char *)shm_ptr + SHM_FLAG_RESULTS) != 0) {
+            while (*((char *)shm_ptr + offset + PACKETS_AREA + SHM_FLAG_RESULTS) != 0) {
                 usleep(WAIT_TIME);
             }
             
@@ -318,8 +414,8 @@ receive_packets(ubpf_jit_fn fn)
             fn_ret = rand()%2;
             #endif
             
-            *((volatile char *)shm_ptr+
-                SHM_OVS_AREA+(packets*SHM_SIZE_PER_PACKET)+
+            *((volatile char *)shm_ptr+offset+
+                PACKETS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET) = (char)fn_ret;
             
             if(packet != NULL) {
@@ -329,12 +425,11 @@ receive_packets(ubpf_jit_fn fn)
                 free(dp_packet2);
             }
         }
-        *((volatile char *)shm_ptr + SHM_FLAG_RESULTS) = 1;
-        *((volatile char *)shm_ptr + SHM_FLAG_PACKETS) = 0;
+        *((volatile char *)shm_ptr + offset + SHM_FLAG_RESULTS) = 1;
+        *((volatile char *)shm_ptr + offset + SHM_FLAG_PACKETS) = 0;
     }
 
-    munmap(shm_ptr, SHM_SIZE);
-    close(fd);
+    shm_end();
 
     return ret;
 }
