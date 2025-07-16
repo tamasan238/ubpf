@@ -294,15 +294,19 @@ need_re_link(int session_id, long long ovs_tid)
 int
 get_session_id(int runtime_pid)
 {
-    for (int i = 0; i < MAX_CONNECTIONS; i++)
+    while(true)
     {
-        if (session[i].p4runtime_id == runtime_pid)
+        for (int i = 0; i < MAX_CONNECTIONS; i++)
         {
-            syslog(LOG_WARNING, "Session ID is %d", i);
-            return i;
+            if (session[i].p4runtime_id == runtime_pid)
+            {
+                syslog(LOG_WARNING, "Session ID is %d", i);
+                return i;
+            }
         }
+        // syslog(LOG_WARNING, "session not found for PID %d.", runtime_pid);
+        usleep(1);
     }
-    syslog(LOG_WARNING, "session not found for PID %d.", runtime_pid);
     return -1;
 }
 
