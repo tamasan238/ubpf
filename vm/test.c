@@ -302,7 +302,7 @@ get_session_id(int runtime_pid)
             return i;
         }
     }
-    syslog(LOG_WARNING, "session not found.");
+    syslog(LOG_WARNING, "session not found for PID %d.", runtime_pid);
     return -1;
 }
 
