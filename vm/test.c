@@ -368,7 +368,7 @@ receive_packets(ubpf_jit_fn fn)
         // TODO: Implement shutdown logic
 
         while (*((char *)shm_ptr+offset+SHM_FLAG_PACKETS) != 1) {
-            // usleep(WAIT_TIME);
+            usleep(WAIT_TIME);
         }
 
         memcpy(&how_many_packets, shm_ptr+offset+SHM_FLAG_HOW_MANY_PACKETS, 
