@@ -371,6 +371,8 @@ receive_packets(ubpf_jit_fn fn)
             usleep(WAIT_TIME);
         }
 
+        __sync_synchronize(); // wait for reading
+
         memcpy(&how_many_packets, shm_ptr+offset+SHM_FLAG_HOW_MANY_PACKETS, 
             sizeof(how_many_packets));
 
@@ -436,6 +438,7 @@ receive_packets(ubpf_jit_fn fn)
                 free(dp_packet2);
             }
         }
+        __sync_synchronize(); // prepare for reading
         *((volatile char *)shm_ptr + offset + SHM_FLAG_RESULTS) = 1;
         *((volatile char *)shm_ptr + offset + SHM_FLAG_PACKETS) = 0;
     }
