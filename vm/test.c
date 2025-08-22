@@ -344,7 +344,7 @@ receive_packets(ubpf_jit_fn fn)
     uint64_t           fn_ret;
     size_t             how_many_packets = 0;
 
-    struct timespec start, end;
+    // struct timespec start, end;
 
     openlog("uBPF VM", LOG_CONS | LOG_PID, LOG_USER);
 
@@ -355,7 +355,7 @@ receive_packets(ubpf_jit_fn fn)
 
     while(1){
 
-        clock_gettime(CLOCK_MONOTONIC, &start);
+        // clock_gettime(CLOCK_MONOTONIC, &start);
 
 
         if (need_re_link(session_id, ovs_tid) == 1)
@@ -448,12 +448,12 @@ receive_packets(ubpf_jit_fn fn)
         *((volatile char *)shm_ptr + offset + SHM_FLAG_RESULTS) = 1;
         *((volatile char *)shm_ptr + offset + SHM_FLAG_PACKETS) = 0;
 
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        long seconds = end.tv_sec - start.tv_sec;
-        long nanoseconds = end.tv_nsec - start.tv_nsec;
-        long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
+        // clock_gettime(CLOCK_MONOTONIC, &end);
+        // long seconds = end.tv_sec - start.tv_sec;
+        // long nanoseconds = end.tv_nsec - start.tv_nsec;
+        // long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
 
-        syslog(LOG_WARNING, "us/batch: %ld", total_microseconds);
+        // syslog(LOG_WARNING, "us/batch: %ld", total_microseconds);
     }
 
     shm_end();
