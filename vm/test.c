@@ -52,7 +52,7 @@
 #include <syslog.h>
 // #include <sys/time.h>
 
-#define WAIT_TIME 1
+#define WAIT_TIME 100
 
 /* for shm */
 #define SHM_NAME "/dev/uio0"
