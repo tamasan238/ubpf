@@ -457,7 +457,7 @@ receive_packets(ubpf_jit_fn fn)
                 PACKETS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET) = (char)fn_ret;
         }
-        // __sync_synchronize(); // prepare for reading
+        __sync_synchronize(); // prepare for reading
         *((volatile char *)shm_ptr + offset + SHM_FLAG_RESULTS) = 1;
         *((volatile char *)shm_ptr + offset + SHM_FLAG_PACKETS) = 0;
 
