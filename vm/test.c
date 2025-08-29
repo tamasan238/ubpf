@@ -336,8 +336,8 @@ receive_packets(ubpf_jit_fn fn)
     long long          ovs_tid = -1;
 
     struct dp_packet_p4 *dp_packet2 = NULL;
-    uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
-    char               *packet = NULL;
+    // uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
+    // char               *packet = NULL;
     struct standard_metadata std_meta;
 
     intptr_t offset = -1;
