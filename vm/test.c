@@ -327,6 +327,31 @@ calc_offset(int session_id)
     return ret;
 }
 
+void segfault_handler(int sig) {
+    void *array[20];
+    size_t size;
+
+    // バックトレース取得
+    size = backtrace(array, 20);
+
+    // syslogに出力
+    openlog("ubpf_test", LOG_PID | LOG_CONS, LOG_USER);
+    syslog(LOG_ERR, "Segmentation fault (signal %d)", sig);
+    syslog(LOG_ERR, "Backtrace (%zu frames):", size);
+
+    char **strings = backtrace_symbols(array, size);
+    if (strings != NULL) {
+        for (size_t i = 0; i < size; i++) {
+            syslog(LOG_ERR, "%s", strings[i]);
+        }
+        free(strings);
+    }
+
+    closelog();
+
+    _exit(1);  // 安全に終了
+}
+
 int
 receive_packets(ubpf_jit_fn fn)
 {
@@ -336,8 +361,6 @@ receive_packets(ubpf_jit_fn fn)
     long long          ovs_tid = -1;
 
     struct dp_packet_p4 *dp_packet2 = NULL;
-    // uint64_t           dp_packet2_size = sizeof(struct dp_packet_p4);
-    // char               *packet = NULL;
     struct standard_metadata std_meta;
 
     intptr_t offset = -1;
@@ -345,6 +368,8 @@ receive_packets(ubpf_jit_fn fn)
     size_t             how_many_packets = 0;
 
     // struct timespec start, end;
+
+    signal(SIGSEGV, segfault_handler);
 
     openlog("uBPF VM", LOG_CONS | LOG_PID, LOG_USER);
 
@@ -385,43 +410,18 @@ receive_packets(ubpf_jit_fn fn)
         for (int packets = 0; packets < how_many_packets; packets++) {
 
             // dp_packet2
-            // dp_packet2 = (struct dp_packet_p4*)malloc(dp_packet2_size);
-            // if(dp_packet2 == NULL){
-            //     syslog(LOG_WARNING, "ERROR: failed to malloc() 1");
-            //     exit(EXIT_FAILURE);
-            // }
-            // memset(dp_packet2, 0, dp_packet2_size);
-            // memcpy(dp_packet2, shm_ptr+offset+PACKETS_AREA+
-            //     (packets*SHM_SIZE_PER_PACKET), dp_packet2_size);
             dp_packet2 = (struct dp_packet_p4 *)(shm_ptr + offset + PACKETS_AREA + packets*SHM_SIZE_PER_PACKET);
 
             // packet
-            // packet = NULL;
             if(dp_packet2->allocated_ == 0){
                 printf("allocated_ is 0\n\n");
                 fn_ret = 1; // (pass)
             }else{
                 if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
                     syslog(LOG_WARNING, "ERROR: allocated_ exceeds limit");
-                    // free(dp_packet2);
                     exit(EXIT_FAILURE);
-                }                
-                // packet = malloc(dp_packet2->allocated_);
-                // if(packet == NULL){
-                //     syslog(LOG_WARNING, "ERROR: failed to malloc() 2");
-                //     free(dp_packet2);
-                //     exit(EXIT_FAILURE);
-                // }
-
-                // dp_packet2->base_ = packet;
-
-                // memset(dp_packet2->base_, 0, dp_packet2->allocated_);
-                // memcpy(dp_packet2->base_, shm_ptr+offset+PACKETS_AREA+
-                //     (packets*SHM_SIZE_PER_PACKET)+SHM_SIZE_DP_PACKET_2, 
-                //     dp_packet2->allocated_);
+                }
                 dp_packet2->base_ = (char *)(shm_ptr + offset + PACKETS_AREA + packets*SHM_SIZE_PER_PACKET + SHM_SIZE_DP_PACKET_2);
-
-
                 std_meta.packet_length = dp_packet2->allocated_;
 
                 fn_ret = fn(dp_packet2, &std_meta);
@@ -439,13 +439,6 @@ receive_packets(ubpf_jit_fn fn)
             *((volatile char *)shm_ptr+offset+
                 PACKETS_AREA+(packets*SHM_SIZE_PER_PACKET)+
                 SHM_SIZE_DP_PACKET_2+SHM_SIZE_PACKET) = (char)fn_ret;
-            
-            // if(packet != NULL) {
-            //     free(packet);
-            // }
-            // if(dp_packet2 != NULL){
-            //     free(dp_packet2);
-            // }
         }
         // __sync_synchronize(); // prepare for reading
         *((volatile char *)shm_ptr + offset + SHM_FLAG_RESULTS) = 1;
