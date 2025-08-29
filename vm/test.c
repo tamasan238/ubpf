@@ -440,12 +440,12 @@ receive_packets(ubpf_jit_fn fn)
                     continue;
                 }
                 std_meta.packet_length = dp_packet2->allocated_;
-                // usleep(10);// ok: 50
+                usleep(10);// ok: 50
                 fn_ret = fn(dp_packet2, &std_meta);
             }
             // result
             while (*((volatile char *)shm_ptr + offset + PACKETS_AREA + SHM_FLAG_RESULTS) != 0) {
-                // usleep(WAIT_TIME);
+                usleep(WAIT_TIME);
             }
             
             #ifdef DEBUG_RESULT_RANDOMLY
