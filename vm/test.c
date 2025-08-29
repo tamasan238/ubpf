@@ -400,7 +400,7 @@ receive_packets(ubpf_jit_fn fn)
 
         // TODO: Implement shutdown logic
 
-        while (*((char *)shm_ptr+offset+SHM_FLAG_PACKETS) != 1) {
+        while (*((volatile char *)shm_ptr+offset+SHM_FLAG_PACKETS) != 1) {
             usleep(WAIT_TIME);
         }
 
@@ -414,22 +414,37 @@ receive_packets(ubpf_jit_fn fn)
             // dp_packet2
             dp_packet2 = (struct dp_packet_p4 *)(shm_ptr + offset + PACKETS_AREA + packets*SHM_SIZE_PER_PACKET);
 
-            // packet
-            if(dp_packet2->allocated_ == 0){
-                printf("allocated_ is 0\n\n");
-                fn_ret = 1; // (pass)
-            }else{
-                if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
-                    syslog(LOG_WARNING, "ERROR: allocated_ exceeds limit");
-                    exit(EXIT_FAILURE);
-                }
-                dp_packet2->base_ = (char *)(shm_ptr + offset + PACKETS_AREA + packets*SHM_SIZE_PER_PACKET + SHM_SIZE_DP_PACKET_2);
-                std_meta.packet_length = dp_packet2->allocated_;
+            if ((uintptr_t)(shm_ptr + offset + PACKETS_AREA + (packets+1)*SHM_SIZE_PER_PACKET) > 
+            (uintptr_t)(shm_ptr + SHM_SIZE)) {
+                syslog(LOG_ERR, "Packet offset out of range: packet=%d, offset=%ld", 
+                    packets, offset + PACKETS_AREA + packets*SHM_SIZE_PER_PACKET);
+                continue;
+            }
 
+            // packet
+            if (dp_packet2->allocated_ == 0) {
+                syslog(LOG_INFO, "allocated_ is 0: packet=%d", packets);
+                fn_ret = 1; // pass
+            } else {
+                if (dp_packet2->allocated_ > SHM_SIZE_PACKET) {
+                    syslog(LOG_WARNING, "ERROR: allocated_=%d exceeds limit: packet=%d", 
+                        dp_packet2->allocated_, packets);
+                    continue;
+                }
+
+                dp_packet2->base_ = (char *)(shm_ptr + offset + PACKETS_AREA + packets*SHM_SIZE_PER_PACKET + SHM_SIZE_DP_PACKET_2);
+
+                if ((uintptr_t)dp_packet2->base_ + dp_packet2->allocated_ > (uintptr_t)(shm_ptr + SHM_SIZE)) {
+                    syslog(LOG_ERR, "dp_packet2->base_ out of range: packet=%d, base=%p, allocated=%d", 
+                        packets, dp_packet2->base_, dp_packet2->allocated_);
+                    continue;
+                }
+
+                std_meta.packet_length = dp_packet2->allocated_;
                 fn_ret = fn(dp_packet2, &std_meta);
             }
             // result
-            while (*((char *)shm_ptr + offset + PACKETS_AREA + SHM_FLAG_RESULTS) != 0) {
+            while (*((volatile char *)shm_ptr + offset + PACKETS_AREA + SHM_FLAG_RESULTS) != 0) {
                 usleep(WAIT_TIME);
             }
             
