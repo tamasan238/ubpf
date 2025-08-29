@@ -439,11 +439,9 @@ receive_packets(ubpf_jit_fn fn)
                         packets, dp_packet2->base_, dp_packet2->allocated_);
                     continue;
                 }
-                // syslog(LOG_WARNING, "A");
                 std_meta.packet_length = dp_packet2->allocated_;
-                syslog(LOG_WARNING, "B");
+                usleep(1);
                 fn_ret = fn(dp_packet2, &std_meta);
-                // syslog(LOG_WARNING, "C");
             }
             // result
             while (*((volatile char *)shm_ptr + offset + PACKETS_AREA + SHM_FLAG_RESULTS) != 0) {
