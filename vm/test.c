@@ -50,6 +50,8 @@
 #endif
 
 #include <syslog.h>
+#include <execinfo.h>
+
 // #include <sys/time.h>
 
 #define WAIT_TIME 1
