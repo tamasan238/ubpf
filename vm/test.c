@@ -440,7 +440,7 @@ receive_packets(ubpf_jit_fn fn)
                     continue;
                 }
                 std_meta.packet_length = dp_packet2->allocated_;
-                usleep(10);// ok: 50
+                // usleep(10);// ok: 50
                 fn_ret = fn(dp_packet2, &std_meta);
             }
             // result
