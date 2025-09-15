@@ -269,7 +269,10 @@ void
 shm_init(void)
 {
     /* VM_AREA */
-    memcpy(shm_ptr+VM_AREA, "pass\0", sizeof("pass\0"));
+    unsigned long threshold = 10000;
+    unsigned long used_bytes = 0;
+    memcpy(&threshold, (uint8_t*)shm_ptr + VM_AREA, sizeof(threshold));
+    memcpy(&used_bytes, (uint8_t*)shm_ptr + VM_AREA + sizeof(threshold), sizeof(used_bytes));
 
     /* META_AREA */
     session = (Connection *)(shm_ptr + SHM_SESSION_TABLE);
