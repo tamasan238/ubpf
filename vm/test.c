@@ -877,19 +877,14 @@ ubpf_truncate_packet()
 int
 getResult()
 {
-    int ret;
+    unsigned long threshold, used_bytes;
 
-    if (strcmp(shm_ptr+VM_AREA, "drop") == 0) {
-        ret = 0;
-        // printf("shm: drop\n");
-    } else if (strcmp(shm_ptr+VM_AREA, "pass") == 0) {
-        ret = 1;
-        // printf("shm: pass\n");
-    } else {
-        ret = -1;
-    }
+    memcpy(&threshold, (uint8_t*)shm_ptr + VM_AREA, sizeof(threshold));
+    memcpy(&used_bytes, (uint8_t*)shm_ptr + VM_AREA + sizeof(threshold), sizeof(used_bytes));
 
-    return ret;
+    if (used_bytes > threshold)
+        return 0; // drop
+    return 1; // pass
 }
 
 void
