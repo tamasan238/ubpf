@@ -883,7 +883,7 @@ read_vm_info()
     uint64_t data;
     memcpy(&data, (uint8_t*)shm_ptr + VM_AREA, sizeof(data));
 
-    return data
+    return data;
 }
 
 void
