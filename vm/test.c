@@ -877,17 +877,11 @@ ubpf_truncate_packet()
     return 0;
 }
 
-int
-getResult()
+uint64_t
+read_vm_info()
 {
-    unsigned long threshold, used_bytes;
-
-    memcpy(&threshold, (uint8_t*)shm_ptr + VM_AREA, sizeof(threshold));
-    memcpy(&used_bytes, (uint8_t*)shm_ptr + VM_AREA + sizeof(threshold), sizeof(used_bytes));
-
-    if (used_bytes > threshold)
-        return 0; // drop
-    return 1; // pass
+    uint64_t data;
+    memcpy(&data, (uint8_t*)shm_ptr + VM_AREA, sizeof(data));
 }
 
 void
@@ -910,7 +904,7 @@ register_functions(struct ubpf_vm* vm)
     ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
     ubpf_register(vm, 10, "ubpf_get_rss_hash", ubpf_get_rss_hash);
     ubpf_register(vm, 11, "ubpf_truncate_packet", ubpf_truncate_packet);
-    ubpf_register(vm, 20, "getResult", getResult);
+    ubpf_register(vm, 20, "read_vm_info", read_vm_info);
     ubpf_register(vm, 21, "myPrintf", myPrintf);
 
     ubpf_set_unwind_function_index(vm, 5);
