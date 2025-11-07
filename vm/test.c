@@ -73,8 +73,8 @@ typedef struct
     int p4runtime_id;
 } Connection;
 
-// #define MAX_CONNECTIONS 512
-#define MAX_CONNECTIONS 8
+#define MAX_CONNECTIONS 512
+// #define MAX_CONNECTIONS 8
 #define SHM_SESSION_TABLE META_AREA
 #define SHM_TABLE_IS_LOCKED (SHM_SESSION_TABLE + sizeof(Connection) * MAX_CONNECTIONS)
 
