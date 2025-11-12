@@ -948,17 +948,19 @@ ubpf_truncate_packet()
 uint64_t
 read_vm_info()
 {
+    openlog("uBPF VM", LOG_CONS | LOG_PID, LOG_USER);
     uint64_t data = 0;
+    syslog(LOG_WARNING, "read_vm_info is called.");
 #ifdef ENCRYPT
     unsigned char plaintext[8];
     int ret = decrypt_message(plaintext);
     if (ret != 0) {
-        syslog(LOG_WARNING, "decap success");
+        syslog(LOG_WARNING, "decrypt success");
         printf("decrypt failed. err: %d\n", ret);
         // exit(1);
         data = 0;
     }else{
-        syslog(LOG_WARNING, "decap failure");
+        syslog(LOG_WARNING, "decrypt failure");
         for (int i = 0; i < 8; i++) {
             data = (data << 8) | plaintext[i];
         }
@@ -966,6 +968,7 @@ read_vm_info()
 #else
     memcpy(&data, (uint8_t*)shm_ptr + VM_AREA, sizeof(data));
 #endif
+    closelog();
 
     return data;
 }
