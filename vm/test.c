@@ -423,8 +423,13 @@ receive_packets(ubpf_jit_fn fn)
                     dp_packet2->allocated_);
 
                 std_meta.packet_length = dp_packet2->allocated_;
+#define BYPASS_P4
 
+#ifdef BYPASS_P4
+                fn_ret = 1; // always pass
+#else
                 fn_ret = fn(dp_packet2, &std_meta);
+#endif
             }
             // result
             while (*((char *)shm_ptr + offset + PACKETS_AREA + SHM_FLAG_RESULTS) != 0) {
