@@ -435,7 +435,7 @@ receive_packets(ubpf_jit_fn fn)
                 long nanoseconds = end.tv_nsec - start.tv_nsec;
                 // long total_nanoseconds = seconds * 1000000000L + nanoseconds;
 
-                syslog(LOG_WARNING, "P4プログラム実行時間: %ld[ns]", nanoseconds);
+                syslog(LOG_WARNING, "P4プログラム実行時間: %ld[ns] (%ld)", nanoseconds, start.tv_nsec);
 #endif
             }
             // result
