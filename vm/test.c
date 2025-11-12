@@ -954,7 +954,8 @@ read_vm_info()
     int ret = decrypt_message(plaintext);
     if (ret != 0) {
         printf("decrypt failed. err: %d\n", ret);
-        exit(1);
+        // exit(1);
+        data = 0;
     }
 
     for (int i = 0; i < 8; i++) {
