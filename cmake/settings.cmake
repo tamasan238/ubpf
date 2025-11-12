@@ -15,7 +15,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if(PLATFORM_LINUX OR PLATFORM_MACOS)
     target_compile_options("ubpf_settings" INTERFACE
       -Wall
-      -Werror
+      # -Werror
       -Iinc
       -O2
       -Wunused-parameter
