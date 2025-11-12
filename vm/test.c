@@ -953,10 +953,12 @@ read_vm_info()
     unsigned char plaintext[8];
     int ret = decrypt_message(plaintext);
     if (ret != 0) {
+        syslog(LOG_WARNING, "decap success");
         printf("decrypt failed. err: %d\n", ret);
         // exit(1);
         data = 0;
     }else{
+        syslog(LOG_WARNING, "decap failure");
         for (int i = 0; i < 8; i++) {
             data = (data << 8) | plaintext[i];
         }
