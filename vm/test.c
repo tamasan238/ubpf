@@ -440,6 +440,7 @@ receive_packets(ubpf_jit_fn fn)
 
         memcpy(&how_many_packets, shm_ptr+offset+SHM_FLAG_HOW_MANY_PACKETS, 
             sizeof(how_many_packets));
+        syslog(LOG_WARNING, "process started.");
 
         for (int packets = 0; packets < how_many_packets; packets++) {
 
