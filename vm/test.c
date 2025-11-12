@@ -110,15 +110,15 @@ unsigned char key[CHACHA20_POLY1305_AEAD_KEYSIZE] = {
     0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,
     0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f
 };
-unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
-unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
+// unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
+// unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
 unsigned char ciphertext[256];
 
 int decrypt_message(unsigned char* plaintext) {
     int ret = 0;
     unsigned int len;
-    unsigned char iv[12];
-    unsigned char authTag[16];
+    unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
+    unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
     
     unsigned char* ptr = (unsigned char*)shm_ptr;
 
@@ -952,15 +952,15 @@ read_vm_info()
     uint64_t data = 0;
     syslog(LOG_WARNING, "read_vm_info is called.");
 #ifdef ENCRYPT
-    unsigned char plaintext[8];
+    unsigned char plaintext[256];
     int ret = decrypt_message(plaintext);
     if (ret != 0) {
-        syslog(LOG_WARNING, "decrypt success");
+        syslog(LOG_WARNING, "decrypt failure");
         printf("decrypt failed. err: %d\n", ret);
         // exit(1);
         data = 0;
     }else{
-        syslog(LOG_WARNING, "decrypt failure");
+        syslog(LOG_WARNING, "decrypt success");
         for (int i = 0; i < 8; i++) {
             data = (data << 8) | plaintext[i];
         }
