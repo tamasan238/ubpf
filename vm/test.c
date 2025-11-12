@@ -956,10 +956,10 @@ read_vm_info()
         printf("decrypt failed. err: %d\n", ret);
         // exit(1);
         data = 0;
-    }
-
-    for (int i = 0; i < 8; i++) {
-        data = (data << 8) | plaintext[i];
+    }else{
+        for (int i = 0; i < 8; i++) {
+            data = (data << 8) | plaintext[i];
+        }
     }
 #else
     memcpy(&data, (uint8_t*)shm_ptr + VM_AREA, sizeof(data));
