@@ -347,7 +347,7 @@ receive_packets(ubpf_jit_fn fn)
     uint64_t           fn_ret;
     size_t             how_many_packets = 0;
 
-    // struct timespec start, end;
+    struct timespec start, end;
 
     openlog("uBPF VM", LOG_CONS | LOG_PID, LOG_USER);
 
@@ -428,14 +428,14 @@ receive_packets(ubpf_jit_fn fn)
 #ifdef BYPASS_P4
                 fn_ret = 1; // always pass
 #else
-                // clock_gettime(CLOCK_MONOTONIC, &start);
+                clock_gettime(CLOCK_MONOTONIC, &start);
                 fn_ret = fn(dp_packet2, &std_meta);
-                // clock_gettime(CLOCK_MONOTONIC, &end);
+                clock_gettime(CLOCK_MONOTONIC, &end);
                 // long seconds = end.tv_sec - start.tv_sec;
-                // long nanoseconds = end.tv_nsec - start.tv_nsec;
-                // long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
+                long nanoseconds = end.tv_nsec - start.tv_nsec;
+                // long total_nanoseconds = seconds * 1000000000L + nanoseconds;
 
-                // syslog(LOG_WARNING, "P4プログラム実行時間: %ld[us]", total_microseconds);
+                syslog(LOG_WARNING, "P4プログラム実行時間: %ld[ns]", nanoseconds);
 #endif
             }
             // result
