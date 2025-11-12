@@ -440,7 +440,6 @@ receive_packets(ubpf_jit_fn fn)
 
         memcpy(&how_many_packets, shm_ptr+offset+SHM_FLAG_HOW_MANY_PACKETS, 
             sizeof(how_many_packets));
-        syslog(LOG_WARNING, "process started.");
 
         for (int packets = 0; packets < how_many_packets; packets++) {
 
@@ -949,19 +948,15 @@ ubpf_truncate_packet()
 uint64_t
 read_vm_info()
 {
-    openlog("uBPF VM", LOG_CONS | LOG_PID, LOG_USER);
     uint64_t data = 0;
-    syslog(LOG_WARNING, "read_vm_info is called.");
 #ifdef ENCRYPT
     unsigned char plaintext[256];
     int ret = decrypt_message(plaintext);
     if (ret != 0) {
-        syslog(LOG_WARNING, "decrypt failure");
         printf("decrypt failed. err: %d\n", ret);
         // exit(1);
         data = 0;
     }else{
-        syslog(LOG_WARNING, "decrypt success");
         for (int i = 0; i < 8; i++) {
             data = (data << 8) | plaintext[i];
         }
@@ -969,8 +964,6 @@ read_vm_info()
 #else
     memcpy(&data, (uint8_t*)shm_ptr + VM_AREA, sizeof(data));
 #endif
-    closelog();
-
     return data;
 }
 
