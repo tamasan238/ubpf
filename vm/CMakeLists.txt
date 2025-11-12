@@ -85,6 +85,7 @@ if(UBPF_ENABLE_TESTS)
     PRIVATE
       "ubpf_settings"
       "ubpf"
+      "wolfssl"
   )
 endif()
 

@@ -49,6 +49,15 @@
 #endif
 #endif
 
+#define ENCRYPT
+
+#ifdef ENCRYPT
+#include <stdint.h>
+#include <wolfssl/options.h>
+#include <wolfssl/wolfcrypt/chacha20_poly1305.h>
+#include <wolfssl/wolfcrypt/random.h>
+#endif
+
 #include <syslog.h>
 // #include <sys/time.h>
 
@@ -92,6 +101,53 @@ Connection *session;
 #define SHM_FLAG_RESULTS (SHM_FLAG_PACKETS + 1)
 #define SHM_FLAG_HOW_MANY_PACKETS (SHM_FLAG_PACKETS + 2) // use only first packet in batch
 /* end */
+
+#ifdef ENCRYPT
+WC_RNG rng;
+unsigned char key[CHACHA20_POLY1305_AEAD_KEYSIZE] = {
+    0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
+    0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
+    0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,
+    0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f
+};
+unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
+unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
+unsigned char ciphertext[256];
+
+int decrypt_message(unsigned char* plaintext) {
+    int ret = 0;
+    unsigned int len;
+    unsigned char iv[12];
+    unsigned char authTag[16];
+    
+    unsigned char* ptr = (unsigned char*)shm_ptr;
+
+    memcpy(&len, ptr, sizeof(len));
+    ptr += sizeof(len);
+
+    memcpy(iv, ptr, sizeof(iv));
+    ptr += sizeof(iv);
+
+    memcpy(ciphertext, ptr, len);
+    ptr += len;
+
+    memcpy(authTag, ptr, sizeof(authTag));
+
+    ret = wc_ChaCha20Poly1305_Decrypt(
+        key,
+        iv,
+        NULL,
+        0,
+        ciphertext,
+        len,
+        plaintext,
+        authTag
+    );
+
+    return ret;
+}
+
+#endif
 
 void
 ubpf_set_register_offset(int x);
@@ -892,8 +948,21 @@ ubpf_truncate_packet()
 uint64_t
 read_vm_info()
 {
-    uint64_t data;
+    uint64_t data = 0;
+#ifdef ENCRYPT
+    unsigned char plaintext[8];
+    int ret = decrypt_message(plaintext);
+    if (ret != 0) {
+        printf("decrypt failed. err: %d\n", ret);
+        exit(1);
+    }
+
+    for (int i = 0; i < 8; i++) {
+        data = (data << 8) | plaintext[i];
+    }
+#else
     memcpy(&data, (uint8_t*)shm_ptr + VM_AREA, sizeof(data));
+#endif
 
     return data;
 }
