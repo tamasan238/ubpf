@@ -320,6 +320,9 @@ shm_start(void)
     }
 
     syslog(LOG_WARNING, "SHM opened. mapped to %p", shm_ptr);
+
+    syslog(LOG_WARNING, "TESTTESTTESTTESTTESTTEST");
+    syslog(LOG_INFO, "TESTTESTTESTTESTTESTTESTTEST");
 }
 
 void
