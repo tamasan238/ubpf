@@ -157,6 +157,8 @@ readfile(const char* path, size_t maxlen, size_t* len);
 static void
 register_functions(struct ubpf_vm* vm);
 
+uint64_t get_vm_info();
+
 enum ubpf_action{
 ABORT,
 DROP,
