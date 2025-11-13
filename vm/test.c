@@ -49,7 +49,7 @@
 #endif
 #endif
 
-// #define ENCRYPT
+#define ENCRYPT
 
 #ifdef ENCRYPT
 #include <stdint.h>
