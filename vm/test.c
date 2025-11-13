@@ -950,6 +950,7 @@ uint64_t
 read_vm_info()
 {
     uint64_t data = 0;
+    syslog(LOG_WARNING, "@@@@@ read_vm_info() is called. @@@@@");
 #ifdef ENCRYPT
     unsigned char plaintext[256];
     int ret = decrypt_message(plaintext);
