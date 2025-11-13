@@ -989,7 +989,7 @@ register_functions(struct ubpf_vm* vm)
     ubpf_register(vm, 9, "ubpf_packet_data", ubpf_packet_data);
     ubpf_register(vm, 10, "ubpf_get_rss_hash", ubpf_get_rss_hash);
     ubpf_register(vm, 11, "ubpf_truncate_packet", ubpf_truncate_packet);
-    ubpf_register(vm, 20, "read_vm_info", read_vm_info);
+    ubpf_register(vm, 20, "get_vm_info", get_vm_info);
     ubpf_register(vm, 21, "myPrintf", myPrintf);
 
     ubpf_set_unwind_function_index(vm, 5);
