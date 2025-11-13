@@ -115,6 +115,7 @@ unsigned char key[CHACHA20_POLY1305_AEAD_KEYSIZE] = {
 unsigned char ciphertext[256];
 
 int decrypt_message(unsigned char* plaintext) {
+    syslog(LOG_INFO, "decrypt_message() called.");
     int ret = 0;
     unsigned int len;
     unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
