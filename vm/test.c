@@ -482,7 +482,8 @@ receive_packets(ubpf_jit_fn fn)
                     dp_packet2->allocated_);
 
                 std_meta.packet_length = dp_packet2->allocated_;
-// #define BYPASS_P4
+
+#define BYPASS_P4
 
 #ifdef BYPASS_P4
                 fn_ret = 1; // always pass
