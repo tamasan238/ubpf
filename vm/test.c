@@ -50,6 +50,9 @@
 #endif
 
 #define ENCRYPT
+#define USE_AES
+// #define USE_CHACHAPOLY
+
 // #define BYPASS_P4
 
 // MEASURE系は同時に1つのみ有効に
@@ -67,7 +70,12 @@ struct timespec start, end;
 #ifdef ENCRYPT
 #include <stdint.h>
 #include <wolfssl/options.h>
+#ifdef USE_CHACHAPOLY
 #include <wolfssl/wolfcrypt/chacha20_poly1305.h>
+#endif
+#ifdef USE_AES
+#include <wolfssl/wolfcrypt/aes.h>
+#endif
 #include <wolfssl/wolfcrypt/random.h>
 #endif
 
@@ -117,12 +125,23 @@ Connection *session;
 
 #ifdef ENCRYPT
 WC_RNG rng;
+#ifdef USE_CHACHAPOLY
 unsigned char key[CHACHA20_POLY1305_AEAD_KEYSIZE] = {
     0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
     0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
     0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,
     0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f
 };
+#endif
+#ifdef USE_AES
+Aes aes;
+const unsigned char key[AES_256_KEY_SIZE] = {
+0x60,0x3d,0xeb,0x10,0x15,0xca,0x71,0xbe,
+0x2b,0x73,0xae,0xf0,0x85,0x7d,0x77,0x81,
+0x1f,0x35,0x2c,0x07,0x3b,0x61,0x08,0xd7,
+0x2d,0x98,0x10,0xa3,0x09,0x14,0xdf,0xf4
+};
+#endif
 // unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
 // unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
 unsigned char ciphertext[256];
@@ -133,9 +152,14 @@ int decrypt_message(unsigned char* plaintext) {
 #endif // MEASURE_VM_INFO
     int ret = 0;
     unsigned int len;
+#ifdef USE_CHACHAPOLY
     unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
     unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
-    
+#endif
+#ifdef USE_AES
+    unsigned char iv[12];
+    unsigned char authTag[16];
+#endif
     unsigned char* ptr = (unsigned char*)shm_ptr;
 
     memcpy(&len, ptr, sizeof(len));
@@ -148,9 +172,11 @@ int decrypt_message(unsigned char* plaintext) {
     ptr += len;
 
     memcpy(authTag, ptr, sizeof(authTag));
+
 #ifdef MEASURE_DECRYPT
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif // MEASURE_DECRYPT
+#ifdef USE_CHACHAPOLY
     ret = wc_ChaCha20Poly1305_Decrypt(
         key,
         iv,
@@ -161,6 +187,21 @@ int decrypt_message(unsigned char* plaintext) {
         plaintext,
         authTag
     );
+#endif
+#ifdef USE_AES
+    ret = wc_AesGcmDecrypt(
+        &aes,
+        plaintext,
+        ciphertext,
+        len,
+        iv,
+        sizeof(iv), 
+        authTag,
+        sizeof(authTag),
+        NULL,
+        0
+    );
+#endif
 #ifdef MEASURE_DECRYPT
     clock_gettime(CLOCK_MONOTONIC, &end);
     long seconds = end.tv_sec - start.tv_sec;
@@ -446,6 +487,14 @@ receive_packets(ubpf_jit_fn fn)
 
     shm_start();
     shm_init();
+
+#ifdef USE_AES
+    wc_AesGcmSetKey(
+        &aes,
+        key,
+        sizeof(key)
+    );
+#endif
 
     runtime_pid = (int)getpid();
 
