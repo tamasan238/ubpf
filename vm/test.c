@@ -50,8 +50,19 @@
 #endif
 
 #define ENCRYPT
-#define MEASURE_P4
 // #define BYPASS_P4
+
+// MEASURE系は同時に1つのみ有効に
+// - 変数名の重複
+// - syslog出力時間が測定対象に含まれるおそれ
+
+#define MEASURE_P4
+// #define MEASURE_VM_INFO
+// #define MEASURE_DECRYPT
+
+#if defined(MEASURE_P4) || defined(MEASURE_VM_INFO) || defined(MEASURE_DECRYPT)
+struct timespec start, end;
+#endif
 
 #ifdef ENCRYPT
 #include <stdint.h>
@@ -117,7 +128,9 @@ unsigned char key[CHACHA20_POLY1305_AEAD_KEYSIZE] = {
 unsigned char ciphertext[256];
 
 int decrypt_message(unsigned char* plaintext) {
-    // syslog(LOG_INFO, "decrypt_message() called.");
+#ifdef MEASURE_VM_INFO
+    clock_gettime(CLOCK_MONOTONIC, &start);
+#endif // MEASURE_VM_INFO
     int ret = 0;
     unsigned int len;
     unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
@@ -135,7 +148,9 @@ int decrypt_message(unsigned char* plaintext) {
     ptr += len;
 
     memcpy(authTag, ptr, sizeof(authTag));
-
+#ifdef MEASURE_DECRYPT
+    clock_gettime(CLOCK_MONOTONIC, &start);
+#endif // MEASURE_DECRYPT
     ret = wc_ChaCha20Poly1305_Decrypt(
         key,
         iv,
@@ -146,7 +161,26 @@ int decrypt_message(unsigned char* plaintext) {
         plaintext,
         authTag
     );
+#ifdef MEASURE_DECRYPT
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    long seconds = end.tv_sec - start.tv_sec;
+    long nanoseconds = end.tv_nsec - start.tv_nsec;
+    long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
+    long total_nanoseconds = seconds * 1000000000L + nanoseconds;
 
+    syslog(LOG_WARNING, "VM内情報復号時間(20251114): %ld [us] %ld [ns] (%ld)", 
+        total_microseconds, total_nanoseconds, start.tv_nsec);
+#endif // MEASURE_DECRYPT
+#ifdef MEASURE_VM_INFO
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    long seconds = end.tv_sec - start.tv_sec;
+    long nanoseconds = end.tv_nsec - start.tv_nsec;
+    long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
+    long total_nanoseconds = seconds * 1000000000L + nanoseconds;
+
+    syslog(LOG_WARNING, "VM内情報取得時間(20251114): %ld [us] %ld [ns] (%ld)", 
+        total_microseconds, total_nanoseconds, start.tv_nsec);
+#endif // MEASURE_VM_INFO
     return ret;
 }
 
@@ -407,8 +441,6 @@ receive_packets(ubpf_jit_fn fn)
     intptr_t offset = -1;
     uint64_t           fn_ret;
     size_t             how_many_packets = 0;
-
-    // struct timespec start, end;
 
     openlog("uBPF VM", LOG_CONS | LOG_PID, LOG_USER);
 
