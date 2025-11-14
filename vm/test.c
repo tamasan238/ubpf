@@ -50,6 +50,8 @@
 #endif
 
 #define ENCRYPT
+#define MEASURE_P4
+// #define BYPASS_P4
 
 #ifdef ENCRYPT
 #include <stdint.h>
@@ -59,7 +61,7 @@
 #endif
 
 #include <syslog.h>
-// #include <sys/time.h>
+#include <sys/time.h>
 
 #define WAIT_TIME 5
 
@@ -483,20 +485,24 @@ receive_packets(ubpf_jit_fn fn)
 
                 std_meta.packet_length = dp_packet2->allocated_;
 
-// #define BYPASS_P4
-
 #ifdef BYPASS_P4
                 fn_ret = 1; // always pass
-#else
-                // clock_gettime(CLOCK_MONOTONIC, &start);
+#else // BYPASS_P4
+#ifdef MEASURE_P4
+                clock_gettime(CLOCK_MONOTONIC, &start);
                 fn_ret = fn(dp_packet2, &std_meta);
-                // clock_gettime(CLOCK_MONOTONIC, &end);
-                // long seconds = end.tv_sec - start.tv_sec;
-                // long nanoseconds = end.tv_nsec - start.tv_nsec;
-                // long total_nanoseconds = seconds * 1000000000L + nanoseconds;
+                clock_gettime(CLOCK_MONOTONIC, &end);
+                long seconds = end.tv_sec - start.tv_sec;
+                long nanoseconds = end.tv_nsec - start.tv_nsec;
+                long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
+                long total_nanoseconds = seconds * 1000000000L + nanoseconds;
 
-                // syslog(LOG_WARNING, "P4プログラム実行時間: %ld[ns] (%ld)", nanoseconds, start.tv_nsec);
-#endif
+                syslog(LOG_WARNING, "P4プログラム実行時間: %ld [us] %ld [ns] (%ld)", 
+                    total_microseconds, total_nanoseconds, start.tv_nsec);
+#else // MEASURE_P4
+                fn_ret = fn(dp_packet2, &std_meta);
+#endif // MEASURE_P4
+#endif // BYPASS_P4
             }
             // result
             while (*((char *)shm_ptr + offset + PACKETS_AREA + SHM_FLAG_RESULTS) != 0) {
