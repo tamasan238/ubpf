@@ -209,7 +209,7 @@ int decrypt_message(unsigned char* plaintext) {
     long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
     long total_nanoseconds = seconds * 1000000000L + nanoseconds;
 
-    syslog(LOG_WARNING, "VM内情報復号時間(20251114): %ld [us] %ld [ns] (%ld)", 
+    syslog(LOG_WARNING, "VM内情報復号時間(20251114-2): %ld [us] %ld [ns] (%ld)", 
         total_microseconds, total_nanoseconds, start.tv_nsec);
 #endif // MEASURE_DECRYPT
 #ifdef MEASURE_VM_INFO
