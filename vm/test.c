@@ -497,7 +497,7 @@ receive_packets(ubpf_jit_fn fn)
                 long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
                 long total_nanoseconds = seconds * 1000000000L + nanoseconds;
 
-                syslog(LOG_WARNING, "P4プログラム実行時間: %ld [us] %ld [ns] (%ld)", 
+                syslog(LOG_WARNING, "P4プログラム実行時間(20251114): %ld [us] %ld [ns] (%ld)", 
                     total_microseconds, total_nanoseconds, start.tv_nsec);
 #else // MEASURE_P4
                 fn_ret = fn(dp_packet2, &std_meta);
