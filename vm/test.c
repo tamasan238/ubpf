@@ -58,7 +58,7 @@
 
 // #define MEASURE_P4
 // #define MEASURE_VM_INFO
-#define MEASURE_DECRYPT
+// #define MEASURE_DECRYPT
 
 #if defined(MEASURE_P4) || defined(MEASURE_VM_INFO) || defined(MEASURE_DECRYPT)
 struct timespec start, end;
