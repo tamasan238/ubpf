@@ -56,8 +56,8 @@
 // - 変数名の重複
 // - syslog出力時間が測定対象に含まれるおそれ
 
-#define MEASURE_P4
-// #define MEASURE_VM_INFO
+// #define MEASURE_P4
+#define MEASURE_VM_INFO
 // #define MEASURE_DECRYPT
 
 #if defined(MEASURE_P4) || defined(MEASURE_VM_INFO) || defined(MEASURE_DECRYPT)
