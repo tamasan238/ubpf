@@ -49,11 +49,11 @@
 #endif
 #endif
 
-// #define ENCRYPT
-// #define USE_AES
+#define ENCRYPT
+#define USE_AES
 // #define USE_CHACHAPOLY
 
-#define BYPASS_P4
+// #define BYPASS_P4
 
 // MEASURE系は同時に1つのみ有効に
 // - 変数名の重複
