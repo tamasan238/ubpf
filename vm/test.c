@@ -49,8 +49,8 @@
 #endif
 #endif
 
-#define ENCRYPT
-#define USE_AES
+// #define ENCRYPT
+// #define USE_AES
 // #define USE_CHACHAPOLY
 
 // #define BYPASS_P4
