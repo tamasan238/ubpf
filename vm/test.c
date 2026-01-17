@@ -101,6 +101,7 @@ typedef struct
 {
     long long ovs_thread_id;
     int p4runtime_id;
+    long long packet_count;
 } Connection;
 
 #define MAX_CONNECTIONS 32
