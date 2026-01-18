@@ -413,6 +413,10 @@ shm_init(void)
 
     /* META_AREA */
     session = (Connection *)(shm_ptr + SHM_SESSION_TABLE);
+    int i;
+    for (i=0; i<MAX_CONNECTIONS; i++){
+        session[i].packet_count = 0;
+    }
 }
 
 void
@@ -515,6 +519,7 @@ receive_packets(ubpf_jit_fn fn)
                 continue;
             }
             offset = calc_offset(session_id);
+            session[session_id].packet_count = 0;
         }
 
         // TODO: Implement shutdown logic
@@ -574,6 +579,7 @@ receive_packets(ubpf_jit_fn fn)
                 clock_gettime(CLOCK_MONOTONIC, &start);
                 fn_ret = fn(dp_packet2, &std_meta);
                 clock_gettime(CLOCK_MONOTONIC, &end);
+                session[session_id].packet_count++;
                 long seconds = end.tv_sec - start.tv_sec;
                 long nanoseconds = end.tv_nsec - start.tv_nsec;
                 long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
@@ -583,6 +589,7 @@ receive_packets(ubpf_jit_fn fn)
                     total_microseconds, total_nanoseconds, start.tv_nsec);
 #else // MEASURE_P4
                 fn_ret = fn(dp_packet2, &std_meta);
+                session[session_id].packet_count++;
 #endif // MEASURE_P4
 #endif // BYPASS_P4
             }
