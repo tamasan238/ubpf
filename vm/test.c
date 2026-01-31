@@ -97,11 +97,25 @@ void *shm_ptr;
 /* end */
 
 /* META_AREA */
+// typedef struct
+// {
+//     long long ovs_thread_id;
+//     int p4runtime_id;
+//     long long packet_count;
+// } Connection;
+
+typedef struct
+{
+    unsigned char iv[16];
+    unsigned char cipher_text[8];
+    unsigned char auth_tag[16];
+} Packet_count;
+
 typedef struct
 {
     long long ovs_thread_id;
     int p4runtime_id;
-    long long packet_count;
+    Packet_count packet_count;
 } Connection;
 
 #define MAX_CONNECTIONS 32
