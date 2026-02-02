@@ -140,7 +140,7 @@ unsigned char iv_counter[16];
 unsigned char authTag_counter[16];
 
 
-int encrypt_counter(unsigned char* plaintext_counter, unsigned int len_counter, unsigned chat* ptr_start) {
+int encrypt_counter(unsigned char* plaintext_counter, unsigned int len_counter, unsigned char* ptr_start) {
     int ret = 0;
 
     wc_RNG_GenerateBlock(&rng_counter, iv, sizeof(iv));
@@ -548,7 +548,7 @@ receive_packets(ubpf_jit_fn fn)
             encrypt_counter(
                 (unsigned char*)&counter,
                 sizeof(counter),
-                (unsigned char*)&session[i].packet_count
+                (unsigned char*)&session[session_id].packet_count
             );
         }
 
