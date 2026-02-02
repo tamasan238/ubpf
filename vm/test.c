@@ -143,7 +143,7 @@ unsigned char authTag_counter[16];
 int encrypt_counter(unsigned char* plaintext_counter, unsigned int len_counter, unsigned char* ptr_start) {
     int ret = 0;
 
-    wc_RNG_GenerateBlock(&rng_counter, iv, sizeof(iv));
+    wc_RNG_GenerateBlock(&rng_counter, iv_counter, sizeof(iv_counter));
     ret = wc_AesGcmEncrypt(
         &aes_counter,
         ciphertext_counter,
