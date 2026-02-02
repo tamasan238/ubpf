@@ -67,17 +67,10 @@
 struct timespec start, end;
 #endif
 
-#ifdef ENCRYPT
 #include <stdint.h>
 #include <wolfssl/options.h>
-#ifdef USE_CHACHAPOLY
-#include <wolfssl/wolfcrypt/chacha20_poly1305.h>
-#endif
-#ifdef USE_AES
 #include <wolfssl/wolfcrypt/aes.h>
-#endif
 #include <wolfssl/wolfcrypt/random.h>
-#endif
 
 #include <syslog.h>
 #include <sys/time.h>
@@ -97,13 +90,6 @@ void *shm_ptr;
 /* end */
 
 /* META_AREA */
-// typedef struct
-// {
-//     long long ovs_thread_id;
-//     int p4runtime_id;
-//     long long packet_count;
-// } Connection;
-
 typedef struct
 {
     unsigned char iv[16];
@@ -119,7 +105,6 @@ typedef struct
 } Connection;
 
 #define MAX_CONNECTIONS 32
-// #define MAX_CONNECTIONS 8
 #define SHM_SESSION_TABLE META_AREA
 #define SHM_TABLE_IS_LOCKED (SHM_SESSION_TABLE + sizeof(Connection) * MAX_CONNECTIONS)
 
@@ -138,43 +123,93 @@ Connection *session;
 #define SHM_FLAG_HOW_MANY_PACKETS (SHM_FLAG_PACKETS + 2) // use only first packet in batch
 /* end */
 
-#ifdef ENCRYPT
-WC_RNG rng;
-#ifdef USE_CHACHAPOLY
-unsigned char key[CHACHA20_POLY1305_AEAD_KEYSIZE] = {
-    0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
-    0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
-    0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,
-    0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f
-};
-#endif
-#ifdef USE_AES
-Aes aes;
+WC_RNG rng, rng_counter;
+
+Aes aes, aes_counter;
 const unsigned char key[AES_256_KEY_SIZE] = {
 0x60,0x3d,0xeb,0x10,0x15,0xca,0x71,0xbe,
 0x2b,0x73,0xae,0xf0,0x85,0x7d,0x77,0x81,
 0x1f,0x35,0x2c,0x07,0x3b,0x61,0x08,0xd7,
 0x2d,0x98,0x10,0xa3,0x09,0x14,0xdf,0xf4
 };
-#endif
-// unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
-// unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
+
 unsigned char ciphertext[256];
+unsigned char ciphertext_counter[8];
+
+unsigned char iv_counter[16];
+unsigned char authTag_counter[16];
+
+
+int encrypt_counter(unsigned char* plaintext_counter, unsigned int len_counter, unsigned chat* ptr_start) {
+    int ret = 0;
+
+    wc_RNG_GenerateBlock(&rng_counter, iv, sizeof(iv));
+    ret = wc_AesGcmEncrypt(
+        &aes_counter,
+        ciphertext_counter,
+        plaintext_counter,
+        len_counter,
+        iv_counter,
+        sizeof(iv_counter), 
+        authTag_counter,
+        sizeof(authTag_counter),
+        NULL,
+        0
+    );
+
+    if(ret == 0){
+        unsigned char* ptr = (unsigned char*)ptr_start;
+        memcpy(ptr, iv_counter, sizeof(iv_counter));
+        ptr += sizeof(iv_counter);
+
+        memcpy(ptr, ciphertext_counter, sizeof(ciphertext_counter));
+        ptr += sizeof(ciphertext_counter);
+
+        memcpy(ptr, authTag_counter, sizeof(authTag_counter));
+    }
+    return ret;
+}
+
+int decrypt_counter(unsigned char* ptr_start, unsigned char* plaintext_counter, unsigned int len_counter)
+{
+    int ret = 0;
+
+    unsigned char* ptr = (unsigned char*)ptr_start;
+
+    unsigned char iv_local[16];
+    unsigned char cipher_local[8];
+    unsigned char auth_tag_local[16];
+
+    memcpy(iv_local, ptr, sizeof(iv_local));
+    ptr += sizeof(iv_local);
+
+    memcpy(cipher_local, ptr, sizeof(cipher_local));
+    ptr += sizeof(cipher_local);
+
+    memcpy(auth_tag_local, ptr, sizeof(auth_tag_local));
+
+    ret = wc_AesGcmDecrypt(
+        &aes_counter,
+        plaintext_counter,
+        cipher_local,
+        len_counter,
+        iv_local,
+        sizeof(iv_local),
+        auth_tag_local,
+        sizeof(auth_tag_local),
+        NULL,
+        0
+    );
+
+    return ret;
+}
+
 
 int decrypt_message(unsigned char* plaintext) {
-#ifdef MEASURE_VM_INFO
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif // MEASURE_VM_INFO
     int ret = 0;
     unsigned int len;
-#ifdef USE_CHACHAPOLY
-    unsigned char iv[CHACHA20_POLY1305_AEAD_IV_SIZE];
-    unsigned char authTag[CHACHA20_POLY1305_AEAD_AUTHTAG_SIZE];
-#endif
-#ifdef USE_AES
     unsigned char iv[12];
     unsigned char authTag[16];
-#endif
     unsigned char* ptr = (unsigned char*)shm_ptr;
 
     memcpy(&len, ptr, sizeof(len));
@@ -188,22 +223,6 @@ int decrypt_message(unsigned char* plaintext) {
 
     memcpy(authTag, ptr, sizeof(authTag));
 
-#ifdef MEASURE_DECRYPT
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif // MEASURE_DECRYPT
-#ifdef USE_CHACHAPOLY
-    ret = wc_ChaCha20Poly1305_Decrypt(
-        key,
-        iv,
-        NULL,
-        0,
-        ciphertext,
-        len,
-        plaintext,
-        authTag
-    );
-#endif
-#ifdef USE_AES
     ret = wc_AesGcmDecrypt(
         &aes,
         plaintext,
@@ -216,31 +235,8 @@ int decrypt_message(unsigned char* plaintext) {
         NULL,
         0
     );
-#endif
-#ifdef MEASURE_DECRYPT
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long seconds = end.tv_sec - start.tv_sec;
-    long nanoseconds = end.tv_nsec - start.tv_nsec;
-    long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
-    long total_nanoseconds = seconds * 1000000000L + nanoseconds;
-
-    syslog(LOG_WARNING, "VM内情報復号時間(20251114-2): %ld [us] %ld [ns] (%ld)", 
-        total_microseconds, total_nanoseconds, start.tv_nsec);
-#endif // MEASURE_DECRYPT
-#ifdef MEASURE_VM_INFO
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long seconds = end.tv_sec - start.tv_sec;
-    long nanoseconds = end.tv_nsec - start.tv_nsec;
-    long total_microseconds = seconds * 1000000 + nanoseconds / 1000;
-    long total_nanoseconds = seconds * 1000000000L + nanoseconds;
-
-    syslog(LOG_WARNING, "VM内情報取得時間(20251114): %ld [us] %ld [ns] (%ld)", 
-        total_microseconds, total_nanoseconds, start.tv_nsec);
-#endif // MEASURE_VM_INFO
     return ret;
 }
-
-#endif
 
 void
 ubpf_set_register_offset(int x);
@@ -428,8 +424,16 @@ shm_init(void)
     /* META_AREA */
     session = (Connection *)(shm_ptr + SHM_SESSION_TABLE);
     int i;
-    for (i=0; i<MAX_CONNECTIONS; i++){
-        session[i].packet_count = 0;
+    // for (i=0; i<MAX_CONNECTIONS; i++){
+    //     session[i].packet_count = 0;
+    // }
+    for (i = 0; i < MAX_CONNECTIONS; i++) {
+        long long counter = 0;
+        encrypt_counter(
+            (unsigned char*)&counter,
+            sizeof(counter),
+            (unsigned char*)&session[i].packet_count
+        );
     }
 }
 
@@ -508,8 +512,14 @@ receive_packets(ubpf_jit_fn fn)
     shm_init();
 
 #ifdef USE_AES
+    wc_InitRng(&rng_counter);
     wc_AesGcmSetKey(
         &aes,
+        key,
+        sizeof(key)
+    );
+    wc_AesGcmSetKey(
+        &aes_counter,
         key,
         sizeof(key)
     );
@@ -533,7 +543,13 @@ receive_packets(ubpf_jit_fn fn)
                 continue;
             }
             offset = calc_offset(session_id);
-            session[session_id].packet_count = 0;
+            // session[session_id].packet_count = 0;
+            long long counter = 0;
+            encrypt_counter(
+                (unsigned char*)&counter,
+                sizeof(counter),
+                (unsigned char*)&session[i].packet_count
+            );
         }
 
         // TODO: Implement shutdown logic
@@ -603,7 +619,22 @@ receive_packets(ubpf_jit_fn fn)
                     total_microseconds, total_nanoseconds, start.tv_nsec);
 #else // MEASURE_P4
                 fn_ret = fn(dp_packet2, &std_meta);
-                session[session_id].packet_count++;
+                // session[session_id].packet_count++;
+                long long counter;
+
+                decrypt_counter(
+                    (unsigned char*)&session[session_id].packet_count,
+                    (unsigned char*)&counter,
+                    sizeof(counter)
+                );
+
+                counter++;
+
+                encrypt_counter(
+                    (unsigned char*)&counter,
+                    sizeof(counter),
+                    (unsigned char*)&session[session_id].packet_count
+                );
 #endif // MEASURE_P4
 #endif // BYPASS_P4
             }
